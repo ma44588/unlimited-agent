@@ -165,6 +165,70 @@ def brand_features(check: bool) -> None:
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
+HUDDLE = DESKTOP / "src-tauri" / "src" / "huddle"
+VOICE_PACK_URL = ("https://github.com/ma44588/unlimited-buzz/releases/download/voice-pack-ar-v1/"
+                  "unlimited-arabic-voice-v1.tar.bz2")
+VOICE_PACK_SHA256 = "b78692f30a777cdc6881c586a87f79b3d2aa2e933ecb6bf583c05f057171bc07"
+VOICE_LICENSE = (
+    "Unlimited Agent Arabic voice pack v1\\n\\n"
+    "Speech-to-text: Moonshine base Arabic (Moonshine AI), Moonshine Community License; see MOONSHINE_LICENSE.txt.\\n"
+    "Voice: Nabra-82M v0.1 (oddadmix), Apache-2.0, https://huggingface.co/oddadmix/Nabra-82M-v0.1\\n"
+    "Both packaged for sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx). Provided AS IS, without warranty.\\n"
+)
+
+
+def _sub(text: str, pattern: str, repl: str, path: Path, flags: int = 0) -> str:
+    new, n = re.subn(pattern, lambda _m: repl, text, count=1, flags=flags)
+    if n != 1:
+        raise SystemExit(f"brand.py: arabic voice pattern not found in {path.name}: {pattern[:60]}")
+    return new
+
+
+def brand_arabic_voice(check: bool) -> None:
+    """Arabic in huddles: Moonshine-ar STT + Nabra TTS (local), shipped as one voice pack."""
+    models = HUDDLE / "models.rs"
+    s = models.read_text()
+    if "unlimited-arabic-voice" not in s:
+        s = _sub(s, r'const STT_ARCHIVE_SHA256: &str = "[0-9a-f]+";',
+                 f'const STT_ARCHIVE_SHA256: &str = "{VOICE_PACK_SHA256}";', models)
+        s = _sub(s, r'const STT_MODEL_VERSION: &str = "\d+";', 'const STT_MODEL_VERSION: &str = "3";', models)
+        s = _sub(s, r"const MAX_STT_DOWNLOAD_BYTES: u64 = [^;]+;",
+                 "const MAX_STT_DOWNLOAD_BYTES: u64 = 300 * 1024 * 1024;", models)
+        s = _sub(s, r"const STT_DOWNLOAD_URL: &str =\s*\"[^;]*\";",
+                 f'const STT_DOWNLOAD_URL: &str = "{VOICE_PACK_URL}";', models, re.S)
+        s = _sub(s, r'const STT_ARCHIVE_SUBDIR: &str = "[^"]+";',
+                 'const STT_ARCHIVE_SUBDIR: &str = "unlimited-arabic-voice-v1";', models)
+        s = _sub(s, r'const STT_MODEL_DIR_NAME: &str = "[^"]+";',
+                 'const STT_MODEL_DIR_NAME: &str = "unlimited-arabic-voice";', models)
+        s = _sub(s, r"const STT_EXPECTED_FILES: &\[&str\] = &\[[^\]]*\];",
+                 'const STT_EXPECTED_FILES: &[&str] = &["encoder_model.ort", "decoder_model_merged.ort", '
+                 '"tokens.txt", "nabra/model.int8.onnx", "nabra/voices.bin", STT_LICENSE_FILE_NAME];', models)
+        s = _sub(s, r'const STT_LICENSE_TEXT: &str = "\\\n.*?";\n',
+                 f'const STT_LICENSE_TEXT: &str = "{VOICE_LICENSE}";\n', models, re.S)
+        if not check:
+            models.write_text(s)
+    stt = HUDDLE / "stt.rs"
+    s = stt.read_text()
+    if "decoder_model_merged.ort" not in s:
+        s = _sub(s, r'let model_path = model_dir\.join\("model\.int8\.onnx"\);\n\s*if !tokens_path\.exists\(\) \|\| !model_path\.exists\(\) \{',
+                 'let model_path = model_dir.join("encoder_model.ort");\n'
+                 '    let decoder_path = model_dir.join("decoder_model_merged.ort");\n'
+                 '    if !tokens_path.exists() || !model_path.exists() || !decoder_path.exists() {', stt)
+        s = _sub(s, r"cfg\.model_config\.nemo_ctc\.model = Some\(model_path\.to_string_lossy\(\)\.into_owned\(\)\);",
+                 "cfg.model_config.moonshine.encoder = Some(model_path.to_string_lossy().into_owned());\n"
+                 "    cfg.model_config.moonshine.merged_decoder = Some(decoder_path.to_string_lossy().into_owned());", stt)
+        if not check:
+            stt.write_text(s)
+    pre = HUDDLE / "preprocessing.rs"
+    s = pre.read_text()
+    if "has_arabic" not in s:
+        s = _sub(s, r"    let s = expand_numbers\(&s\);\n",
+                 "    // Unlimited: Arabic voice reads digits natively; English words would break it.\n"
+                 "    let s = if super::pocket::has_arabic(&s) { s } else { expand_numbers(&s) };\n", pre)
+        if not check:
+            pre.write_text(s)
+
+
 def brand_patches(check: bool) -> int:
     n = 0
     for path, anchor, repl, marker in PATCHES:
@@ -185,6 +249,7 @@ def main() -> None:
     brand_installer(check)
     brand_theme(check)
     brand_features(check)
+    brand_arabic_voice(check)
     print(f"patches: {brand_patches(check)} applied")
     print(f"overrides: {brand_overrides(check)} files")
     n = brand_ui_strings(check)
