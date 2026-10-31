@@ -1,0 +1,55 @@
+name: Unlimited Agent desktop (macOS)
+
+# Builds the branded "Unlimited Agent" desktop app (unsigned) for Apple Silicon.
+# Run manually from the Actions tab; the DMG is attached as a workflow artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Build Unlimited Agent (macOS arm64)
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      TARGET: aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: cashapp/activate-hermit@cea9af7913204a965fd488637a8d1811bba2e616 # v1
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+        with:
+          workspaces: |
+            . -> target
+            desktop/src-tauri -> target
+
+      - name: Install desktop dependencies
+        run: just desktop-install-ci
+
+      - name: Apply Unlimited branding
+        run: |
+          python3 unlimited/brand.py
+          cd desktop && pnpm tauri icon ../unlimited/brand/icon-1024.png
+
+      - name: Build sidecars
+        run: |
+          rustup target add "$TARGET"
+          cargo build --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-backend-kubernetes -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
+          ./scripts/bundle-sidecars.sh "$TARGET"
+
+      - name: Build app (unsigned)
+        run: cd desktop && pnpm tauri build --no-sign --target "$TARGET" --bundles dmg
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: unlimited-agent-macos-arm64
+          path: desktop/src-tauri/target/${{ env.TARGET }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
