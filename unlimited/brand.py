@@ -95,11 +95,59 @@ def brand_theme(check: bool) -> None:
         dst.write_text(dst.read_text() + "\n" + src.read_text())
 
 
+PROJECTS_UI = DESKTOP / "src" / "features" / "projects" / "ui"
+# (file, anchor, replacement, marker) — each anchor must exist exactly once, so an upstream change
+# that moves it fails the build loudly instead of silently dropping the tab.
+PATCHES = [
+    (PROJECTS_UI / "ProjectWorkspaceTabList.tsx",
+     '        <TabsTrigger className={PROJECT_TAB_TRIGGER_CLASS} value="contributors">\n'
+     '          <ProjectTabLabel>Contributors</ProjectTabLabel>\n'
+     '        </TabsTrigger>\n',
+     '        <TabsTrigger className={PROJECT_TAB_TRIGGER_CLASS} value="contributors">\n'
+     '          <ProjectTabLabel>Contributors</ProjectTabLabel>\n'
+     '        </TabsTrigger>\n'
+     '        <TabsTrigger className={PROJECT_TAB_TRIGGER_CLASS} value="odoo">\n'
+     '          <ProjectTabLabel>Odoo & GitHub</ProjectTabLabel>\n'
+     '        </TabsTrigger>\n',
+     'value="odoo"'),
+    (PROJECTS_UI / "ProjectWorkspaceTabs.tsx",
+     'import { ProjectTabsList } from "./ProjectWorkspaceTabList";\n',
+     'import { ProjectTabsList } from "./ProjectWorkspaceTabList";\n'
+     'import { OdooProjectPanel } from "@/features/unlimited/odoo/OdooProjectPanel";\n',
+     "OdooProjectPanel }"),
+    (PROJECTS_UI / "ProjectWorkspaceTabs.tsx",
+     '        <TabsContent className="m-0" value="contributors">\n',
+     '        <TabsContent\n'
+     '          className="m-0 min-h-0 flex-1 flex-col data-[state=active]:flex"\n'
+     '          value="odoo"\n'
+     '        >\n'
+     '          <OdooProjectPanel buzzProjectId={project.id} projectName={project.name} />\n'
+     '        </TabsContent>\n\n'
+     '        <TabsContent className="m-0" value="contributors">\n',
+     '<OdooProjectPanel buzzProjectId'),
+]
+
+
+def brand_patches(check: bool) -> int:
+    n = 0
+    for path, anchor, repl, marker in PATCHES:
+        text = path.read_text()
+        if marker in text:
+            continue
+        if text.count(anchor) != 1:
+            raise SystemExit(f"brand.py: anchor not found exactly once in {path.relative_to(ROOT)}")
+        n += 1
+        if not check:
+            path.write_text(text.replace(anchor, repl))
+    return n
+
+
 def main() -> None:
     check = "--check" in sys.argv
     brand_tauri_conf(check)
     brand_installer(check)
     brand_theme(check)
+    print(f"patches: {brand_patches(check)} applied")
     print(f"overrides: {brand_overrides(check)} files")
     n = brand_ui_strings(check)
     print(f"{'would replace' if check else 'replaced'} {n} user-facing 'Buzz' occurrences; product = {NAME}")

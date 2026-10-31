@@ -1,6 +1,15 @@
 {$BUZZ_DOMAIN} {
   encode zstd gzip
 
+  # Unlimited: owner-only admin API of the Odoo connector (NIP-98 signed by the desktop app).
+  handle /unlimited-api/admin/* {
+    uri strip_prefix /unlimited-api
+    reverse_proxy 172.30.0.1:8765
+  }
+  handle /unlimited-api/* {
+    respond 404
+  }
+
   # Unlimited: browsers get our private landing page; invites keep the Buzz web flow;
   # desktop/mobile websocket, NIP-11 and the relay API go to the relay unchanged.
   @browser {
