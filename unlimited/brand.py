@@ -139,6 +139,15 @@ PATCHES = [
      '      />\n'
      '      <ContextSection\n        collapsible\n        headerAction={\n          <ProjectChannelManagement\n',
      "<OdooContextSection\n"),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     'import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";\n',
+     'import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";\n'
+     'import { OutboxSidebarEntry } from "@/features/unlimited/odoo/OutboxSidebarEntry";\n',
+     "OutboxSidebarEntry }"),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     '          <ProtectedBestieSidebarEntry />\n',
+     '          <ProtectedBestieSidebarEntry />\n          <OutboxSidebarEntry />\n',
+     "<OutboxSidebarEntry />"),
 ]
 
 

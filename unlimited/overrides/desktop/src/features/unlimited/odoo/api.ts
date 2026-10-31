@@ -37,6 +37,11 @@ export type ProjectStatus = {
 export type Overview = { projects: OdooProject[]; session: SessionStatus; approvals: number; agents: string[] };
 export type HealthReport = { score?: number; checks?: { name: string; status: string; detail: string }[] };
 
+export type OutboxItem = {
+  id: string; ts: string; agent: string; mailbox: string; from: string; to: string[]; cc: string[];
+  subject: string; body: string; attachments: string[]; reply: boolean;
+};
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly sessionExpired = false) {
     super(message);
@@ -89,6 +94,9 @@ export const odooApi = {
   check: (pid: string) => request<{ ok: boolean; steps: CheckStep[] }>("POST", `/admin/projects/${pid}/check`, {}),
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
+  outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
+  decideEmail: (aid: string, decision: "approve" | "reject", edits?: { subject?: string; body?: string }) =>
+    request<{ sent?: boolean }>("POST", `/admin/outbox/${aid}`, { decision, ...(edits ? { edits } : {}) }),
   decide: (aid: string, decision: "approve" | "reject") =>
     request<{ id: string }>("POST", `/admin/approvals/${aid}`, { decision }),
 };
@@ -104,6 +112,14 @@ const demoState: { projects: Record<string, OdooProject>; approvals: Approval[] 
     },
   ],
 };
+let demoOutbox: OutboxItem[] = [
+  {
+    id: "m1", ts: new Date().toISOString(), agent: "sales", mailbox: "sales", from: "sales@unlimitedsolutions.technology",
+    to: ["it@client-example.com"], cc: [], subject: "عرض تطوير Odoo — متابعة اجتماع أمس",
+    body: "أهلاً أستاذ أحمد،\n\nشكراً على وقتك أمس. مرفق العرض الفني والمالي لتطوير موديول المخازن كما اتفقنا.\n\nتحياتي،\nفريق Unlimited Solutions",
+    attachments: ["offer.pdf"], reply: true,
+  },
+];
 const DEMO_PROJECTS: OdooShProject[] = [
   { name: "diraty-odoo", repo: "ma44588/diraty", version: "18.0", connected_as: null },
   { name: "alfares-int", repo: "ma44588/Alfares", version: "19.0", connected_as: null },
@@ -164,6 +180,11 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
       { name: "scheduled_actions", status: "ok", detail: "All scheduled actions ran this week" },
       { name: "outgoing_mail", status: "warn", detail: "3 emails failed to send" },
     ] } as T;
+  }
+  if (path === "/admin/outbox") return demoOutbox as T;
+  if ((m = path.match(/^\/admin\/outbox\/(.+)$/))) {
+    demoOutbox = demoOutbox.filter((x) => x.id !== m![1]);
+    return { sent: (body as { decision: string }).decision === "approve" } as T;
   }
   if ((m = path.match(/^\/admin\/approvals\/(.+)$/))) {
     demoState.approvals = demoState.approvals.filter((a) => a.id !== m![1]);
