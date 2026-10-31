@@ -40,8 +40,8 @@ jobs:
           cargo build --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-backend-kubernetes -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli
           ./scripts/bundle-sidecars.sh "$TARGET"
 
-      - name: Build app (unsigned)
-        run: cd desktop && pnpm tauri build --no-sign --target "$TARGET" --bundles dmg
+      - name: Build app (ad-hoc signed)
+        run: cd desktop && pnpm tauri build --target "$TARGET" --bundles dmg
         env:
           CMAKE_POLICY_VERSION_MINIMUM: "3.5"
           TAURI_BUNDLER_DMG_IGNORE_CI: "true"

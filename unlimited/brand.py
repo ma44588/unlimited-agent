@@ -30,6 +30,8 @@ def brand_tauri_conf(check: bool) -> int:
     conf = json.loads(path.read_text())
     conf["productName"] = NAME
     conf["identifier"] = IDENTIFIER
+    # Ad-hoc signature: unsigned apps show as "damaged" on Apple Silicon.
+    conf.setdefault("bundle", {}).setdefault("macOS", {})["signingIdentity"] = "-"
     for win in conf.get("app", {}).get("windows", []):
         if win.get("title") == "Buzz":
             win["title"] = NAME
@@ -59,9 +61,18 @@ def brand_ui_strings(check: bool) -> int:
     return changed
 
 
+def brand_installer(check: bool) -> None:
+    """Replace the macOS DMG window background with the Unlimited one."""
+    src = ROOT / "unlimited" / "brand" / "dmg-background.png"
+    dst = DESKTOP / "src-tauri" / "icons" / "dmg-background.png"
+    if src.exists() and not check:
+        dst.write_bytes(src.read_bytes())
+
+
 def main() -> None:
     check = "--check" in sys.argv
     brand_tauri_conf(check)
+    brand_installer(check)
     n = brand_ui_strings(check)
     print(f"{'would replace' if check else 'replaced'} {n} user-facing 'Buzz' occurrences; product = {NAME}")
 
