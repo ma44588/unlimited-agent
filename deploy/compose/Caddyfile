@@ -17,6 +17,7 @@
     handle @landing {
       root * /srv/landing
       header X-Robots-Tag "noindex, nofollow"
+      header /dl/* Cache-Control "private, no-store"
       file_server
     }
     handle @webapp {
