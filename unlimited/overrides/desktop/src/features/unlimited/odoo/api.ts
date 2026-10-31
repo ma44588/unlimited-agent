@@ -95,6 +95,7 @@ export const odooApi = {
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
   outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
+  serverAgents: () => request<{ name: string; pubkey: string }[]>("GET", "/admin/server-agents"),
   decideEmail: (aid: string, decision: "approve" | "reject", edits?: { subject?: string; body?: string }) =>
     request<{ sent?: boolean }>("POST", `/admin/outbox/${aid}`, { decision, ...(edits ? { edits } : {}) }),
   decide: (aid: string, decision: "approve" | "reject") =>
@@ -182,6 +183,8 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
     ] } as T;
   }
   if (path === "/admin/outbox") return demoOutbox as T;
+  if (path === "/admin/server-agents")
+    return [{ name: "Developer", pubkey: "e".repeat(64) }, { name: "Documentation", pubkey: "d".repeat(64) }] as T;
   if ((m = path.match(/^\/admin\/outbox\/(.+)$/))) {
     demoOutbox = demoOutbox.filter((x) => x.id !== m![1]);
     return { sent: (body as { decision: string }).decision === "approve" } as T;

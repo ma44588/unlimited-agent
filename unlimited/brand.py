@@ -148,6 +148,23 @@ PATCHES = [
      '          <ProtectedBestieSidebarEntry />\n',
      '          <ProtectedBestieSidebarEntry />\n          <OutboxSidebarEntry />\n',
      "<OutboxSidebarEntry />"),
+    (DESKTOP / "src" / "features" / "huddle" / "components" / "AddAgentDialog.tsx",
+     'import type { ManagedAgentBackend } from "@/shared/api/types";\n',
+     'import type { ManagedAgentBackend } from "@/shared/api/types";\n'
+     'import { loadServerAgents } from "@/features/unlimited/odoo/serverAgents";\n',
+     "loadServerAgents }"),
+    (DESKTOP / "src" / "features" / "huddle" / "components" / "AddAgentDialog.tsx",
+     '    invoke<ManagedAgentSummary[]>("list_managed_agents")\n'
+     '      .then((nextAgents) => {\n'
+     '        if (!cancelled) setAgents(nextAgents);\n'
+     '      })\n',
+     '    Promise.all([invoke<ManagedAgentSummary[]>("list_managed_agents"), loadServerAgents()])\n'
+     '      .then(([nextAgents, serverAgents]) => {\n'
+     '        const local = new Set(nextAgents.map((a) => a.pubkey.toLowerCase()));\n'
+     '        const remote = serverAgents.filter((a) => !local.has(a.pubkey.toLowerCase()));\n'
+     '        if (!cancelled) setAgents([...remote, ...nextAgents]);\n'
+     '      })\n',
+     "loadServerAgents()])"),
 ]
 
 
@@ -166,12 +183,12 @@ def brand_features(check: bool) -> None:
 
 
 HUDDLE = DESKTOP / "src-tauri" / "src" / "huddle"
-VOICE_PACK_URL = ("https://github.com/ma44588/unlimited-buzz/releases/download/voice-pack-ar-v1/"
-                  "unlimited-arabic-voice-v1.tar.bz2")
-VOICE_PACK_SHA256 = "b78692f30a777cdc6881c586a87f79b3d2aa2e933ecb6bf583c05f057171bc07"
+VOICE_PACK_URL = ("https://github.com/ma44588/unlimited-buzz/releases/download/voice-pack-v2/"
+                  "unlimited-voice-v2.tar.bz2")
+VOICE_PACK_SHA256 = "b817c9cafc368f8d71272e8bf552f26c7a6c82f60d6e499bce13a5c6e1e4de15"
 VOICE_LICENSE = (
-    "Unlimited Agent Arabic voice pack v1\\n\\n"
-    "Speech-to-text: Moonshine base Arabic (Moonshine AI), Moonshine Community License; see MOONSHINE_LICENSE.txt.\\n"
+    "Unlimited Agent voice pack v2\\n\\n"
+    "Speech-to-text: OpenAI Whisper large-v3-turbo (MIT), int8 export by sherpa-onnx; Arabic and English.\\n"
     "Voice: Nabra-82M v0.1 (oddadmix), Apache-2.0, https://huggingface.co/oddadmix/Nabra-82M-v0.1\\n"
     "Both packaged for sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx). Provided AS IS, without warranty.\\n"
 )
@@ -185,40 +202,62 @@ def _sub(text: str, pattern: str, repl: str, path: Path, flags: int = 0) -> str:
 
 
 def brand_arabic_voice(check: bool) -> None:
-    """Arabic in huddles: Moonshine-ar STT + Nabra TTS (local), shipped as one voice pack."""
+    """Huddles in Arabic + English: Whisper turbo STT + Nabra TTS (local), shipped as one voice pack."""
     models = HUDDLE / "models.rs"
     s = models.read_text()
-    if "unlimited-arabic-voice" not in s:
+    if "unlimited-voice-v2" not in s:
         s = _sub(s, r'const STT_ARCHIVE_SHA256: &str = "[0-9a-f]+";',
                  f'const STT_ARCHIVE_SHA256: &str = "{VOICE_PACK_SHA256}";', models)
-        s = _sub(s, r'const STT_MODEL_VERSION: &str = "\d+";', 'const STT_MODEL_VERSION: &str = "3";', models)
+        s = _sub(s, r'const STT_MODEL_VERSION: &str = "\d+";', 'const STT_MODEL_VERSION: &str = "4";', models)
         s = _sub(s, r"const MAX_STT_DOWNLOAD_BYTES: u64 = [^;]+;",
-                 "const MAX_STT_DOWNLOAD_BYTES: u64 = 300 * 1024 * 1024;", models)
+                 "const MAX_STT_DOWNLOAD_BYTES: u64 = 900 * 1024 * 1024;", models)
         s = _sub(s, r"const STT_DOWNLOAD_URL: &str =\s*\"[^;]*\";",
                  f'const STT_DOWNLOAD_URL: &str = "{VOICE_PACK_URL}";', models, re.S)
         s = _sub(s, r'const STT_ARCHIVE_SUBDIR: &str = "[^"]+";',
-                 'const STT_ARCHIVE_SUBDIR: &str = "unlimited-arabic-voice-v1";', models)
+                 'const STT_ARCHIVE_SUBDIR: &str = "unlimited-voice-v2";', models)
         s = _sub(s, r'const STT_MODEL_DIR_NAME: &str = "[^"]+";',
-                 'const STT_MODEL_DIR_NAME: &str = "unlimited-arabic-voice";', models)
+                 'const STT_MODEL_DIR_NAME: &str = "unlimited-voice-v2";', models)
         s = _sub(s, r"const STT_EXPECTED_FILES: &\[&str\] = &\[[^\]]*\];",
-                 'const STT_EXPECTED_FILES: &[&str] = &["encoder_model.ort", "decoder_model_merged.ort", '
-                 '"tokens.txt", "nabra/model.int8.onnx", "nabra/voices.bin", STT_LICENSE_FILE_NAME];', models)
+                 'const STT_EXPECTED_FILES: &[&str] = &["turbo-encoder.int8.onnx", "turbo-decoder.int8.onnx", '
+                 '"turbo-tokens.txt", "nabra/model.int8.onnx", "nabra/voices.bin", STT_LICENSE_FILE_NAME];', models)
         s = _sub(s, r'const STT_LICENSE_TEXT: &str = "\\\n.*?";\n',
                  f'const STT_LICENSE_TEXT: &str = "{VOICE_LICENSE}";\n', models, re.S)
         if not check:
             models.write_text(s)
     stt = HUDDLE / "stt.rs"
     s = stt.read_text()
-    if "decoder_model_merged.ort" not in s:
-        s = _sub(s, r'let model_path = model_dir\.join\("model\.int8\.onnx"\);\n\s*if !tokens_path\.exists\(\) \|\| !model_path\.exists\(\) \{',
-                 'let model_path = model_dir.join("encoder_model.ort");\n'
-                 '    let decoder_path = model_dir.join("decoder_model_merged.ort");\n'
+    if "turbo-encoder" not in s:
+        s = _sub(s, r'let tokens_path = model_dir\.join\("tokens\.txt"\);\n\s*let model_path = model_dir\.join\("model\.int8\.onnx"\);\n\s*if !tokens_path\.exists\(\) \|\| !model_path\.exists\(\) \{',
+                 'let tokens_path = model_dir.join("turbo-tokens.txt");\n'
+                 '    let model_path = model_dir.join("turbo-encoder.int8.onnx");\n'
+                 '    let decoder_path = model_dir.join("turbo-decoder.int8.onnx");\n'
                  '    if !tokens_path.exists() || !model_path.exists() || !decoder_path.exists() {', stt)
         s = _sub(s, r"cfg\.model_config\.nemo_ctc\.model = Some\(model_path\.to_string_lossy\(\)\.into_owned\(\)\);",
-                 "cfg.model_config.moonshine.encoder = Some(model_path.to_string_lossy().into_owned());\n"
-                 "    cfg.model_config.moonshine.merged_decoder = Some(decoder_path.to_string_lossy().into_owned());", stt)
+                 "// Unlimited: Whisper large-v3-turbo, language auto-detected per utterance (Arabic + English).\n"
+                 "    cfg.model_config.whisper.encoder = Some(model_path.to_string_lossy().into_owned());\n"
+                 "    cfg.model_config.whisper.decoder = Some(decoder_path.to_string_lossy().into_owned());\n"
+                 "    cfg.model_config.whisper.language = Some(String::new());\n"
+                 "    cfg.model_config.whisper.task = Some(\"transcribe\".to_string());\n"
+                 "    cfg.model_config.whisper.tail_paddings = -1;", stt)
+        s = _sub(s, r"    let stream = recognizer\.create_stream\(\);\n    stream\.accept_waveform\(16_000, speech_buf\);\n    recognizer\.decode\(&stream\);\n\n    stream\n        \.get_result\(\)\n        \.map\(\|r\| r\.text\.trim\(\)\.to_string\(\)\)\n        \.unwrap_or_default\(\)",
+                 "    // Unlimited: pad with silence so Whisper does not cut the last word, then drop\n"
+                 "    // the phrases it invents on silence or noise.\n"
+                 "    let mut padded = vec![0.0f32; 4_800];\n"
+                 "    padded.extend_from_slice(speech_buf);\n"
+                 "    padded.extend(std::iter::repeat(0.0f32).take(24_000));\n"
+                 "    let stream = recognizer.create_stream();\n"
+                 "    stream.accept_waveform(16_000, &padded);\n"
+                 "    recognizer.decode(&stream);\n"
+                 "    let text = stream.get_result().map(|r| r.text.trim().to_string()).unwrap_or_default();\n"
+                 "    super::unlimited_stt_filter::clean(&text)", stt)
         if not check:
             stt.write_text(s)
+    mod_rs = HUDDLE / "mod.rs"
+    m = mod_rs.read_text()
+    if "unlimited_stt_filter" not in m:
+        m = m.rstrip("\n") + "\n\n// Unlimited: drop Whisper hallucinations from huddle transcripts.\npub(crate) mod unlimited_stt_filter;\n"
+        if not check:
+            mod_rs.write_text(m)
     pre = HUDDLE / "preprocessing.rs"
     s = pre.read_text()
     if "has_arabic" not in s:

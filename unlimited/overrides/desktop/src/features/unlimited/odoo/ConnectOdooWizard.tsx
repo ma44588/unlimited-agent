@@ -13,6 +13,7 @@ const AGENT_INFO: Record<string, string> = {
   documentation: "Writes user guides with screenshots from staging",
 };
 const CHECK_LABEL: Record<string, string> = {
+  github: "GitHub write access",
   build: "Latest staging build found",
   ssh: "Server reaches the build",
   agent: "Agent user ready on staging",
