@@ -128,6 +128,20 @@ PATCHES = [
 ]
 
 
+ON_BY_DEFAULT = {"projects"}  # core to Unlimited Agent: Odoo & GitHub live inside projects
+
+
+def brand_features(check: bool) -> None:
+    """Turn our core preview features on by default (users can still toggle them)."""
+    path = ROOT / "preview-features.json"
+    data = json.loads(path.read_text())
+    for f in data.get("features", []):
+        if f.get("id") in ON_BY_DEFAULT:
+            f["defaultEnabled"] = True
+    if not check:
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
 def brand_patches(check: bool) -> int:
     n = 0
     for path, anchor, repl, marker in PATCHES:
@@ -147,6 +161,7 @@ def main() -> None:
     brand_tauri_conf(check)
     brand_installer(check)
     brand_theme(check)
+    brand_features(check)
     print(f"patches: {brand_patches(check)} applied")
     print(f"overrides: {brand_overrides(check)} files")
     n = brand_ui_strings(check)
