@@ -8,7 +8,7 @@
     not header Accept *application/nostr+json*
   }
   @landing {
-    path / /brand/*
+    path / /brand/* /dl/*
   }
   @webapp {
     path /invite/* /assets/*
