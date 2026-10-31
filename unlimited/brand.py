@@ -125,6 +125,20 @@ PATCHES = [
      '        </TabsContent>\n\n'
      '        <TabsContent className="m-0" value="contributors">\n',
      '<OdooProjectPanel buzzProjectId'),
+    (PROJECTS_UI / "ProjectHomeContextPanel.tsx",
+     'import { ProjectChannelManagement } from "./ProjectChannelManagement";\n',
+     'import { ProjectChannelManagement } from "./ProjectChannelManagement";\n'
+     'import { OdooContextSection } from "@/features/unlimited/odoo/OdooContextSection";\n',
+     "OdooContextSection }"),
+    (PROJECTS_UI / "ProjectHomeContextPanel.tsx",
+     '      <ContextSection\n        collapsible\n        headerAction={\n          <ProjectChannelManagement\n',
+     '      <OdooContextSection\n'
+     '        onAddRepository={onAddRepository}\n'
+     '        projectName={project.name}\n'
+     '        repositoryId={firstRepository?.id ?? null}\n'
+     '      />\n'
+     '      <ContextSection\n        collapsible\n        headerAction={\n          <ProjectChannelManagement\n',
+     "<OdooContextSection\n"),
 ]
 
 
