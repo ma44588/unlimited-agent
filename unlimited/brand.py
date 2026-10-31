@@ -69,10 +69,28 @@ def brand_installer(check: bool) -> None:
         dst.write_bytes(src.read_bytes())
 
 
+def brand_overrides(check: bool) -> int:
+    """Copy unlimited/overrides/** over the checkout (logo, wordmark, no bees)."""
+    base = ROOT / "unlimited" / "overrides"
+    n = 0
+    for src in base.rglob("*"):
+        if src.is_file():
+            dst = ROOT / src.relative_to(base)
+            n += 1
+            if not check:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                dst.write_bytes(src.read_bytes())
+    plist = DESKTOP / "src-tauri" / "Info.plist"
+    if plist.exists() and not check:
+        plist.write_text(plist.read_text().replace("<string>Buzz</string>", f"<string>{NAME}</string>"))
+    return n
+
+
 def main() -> None:
     check = "--check" in sys.argv
     brand_tauri_conf(check)
     brand_installer(check)
+    print(f"overrides: {brand_overrides(check)} files")
     n = brand_ui_strings(check)
     print(f"{'would replace' if check else 'replaced'} {n} user-facing 'Buzz' occurrences; product = {NAME}")
 

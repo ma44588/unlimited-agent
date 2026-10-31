@@ -33,3 +33,13 @@
     reverse_proxy relay:3000
   }
 }
+
+# Unlimited: design preview of the desktop UI (browser mode with demo data, no real data).
+{$BUZZ_DOMAIN}:8443 {
+  encode zstd gzip
+  header X-Robots-Tag "noindex, nofollow"
+  header Cache-Control "no-store"
+  root * /srv/preview
+  try_files {path} /index.html
+  file_server
+}
