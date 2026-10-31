@@ -1,0 +1,48 @@
+
+/* ------------------------------------------------------------------------
+ * Unlimited Solutions brand theme (appended at build time by unlimited/brand.py).
+ * Palette: deep purple #421C63 · purple #7A4793 · magenta #9A3367 · charcoal #575656.
+ * Unlayered on purpose so it overrides the upstream @layer tokens.
+ * ---------------------------------------------------------------------- */
+:root {
+  --buzz-gradient-light-top: #eee5f6;
+  --buzz-gradient-light-bottom: #f8e5ef;
+  --buzz-gradient-dark-top: #26113a;
+  --buzz-gradient-dark-bottom: #3a1430;
+  --primary: 280 35% 43%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 280 35% 43%;
+  --sidebar-primary: 280 35% 43%;
+  --sidebar-primary-foreground: 0 0% 100%;
+}
+
+.dark {
+  --primary: 280 45% 74%;
+  --primary-foreground: 272 56% 14%;
+  --ring: 280 45% 74%;
+  --sidebar-primary: 280 45% 74%;
+  --sidebar-primary-foreground: 272 56% 14%;
+}
+
+/* Onboarding: brand purple → magenta wash instead of the Buzz chartreuse. */
+.buzz-onboarding-neutral-theme {
+  --buzz-welcome-chartreuse: #f3ebf8;
+  --buzz-onboarding-shell-bottom: #f8e5ef;
+  --buzz-onboarding-cta-label: #ffffff;
+  --buzz-onboarding-backup-ink: #421c63;
+  --primary: 272 56% 25%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 280 35% 43%;
+  --buzz-onboarding-avatar-accent-bg: 238 229 246;
+  --buzz-onboarding-avatar-accent-fg: 66 28 99;
+}
+
+.buzz-onboarding-neutral-theme.buzz-startup-shell.buzz-onboarding-welcome {
+  background-color: #f3ebf8;
+  background-image:
+    radial-gradient(circle, rgb(66 28 99 / 0.09) 1px, transparent 1px),
+    linear-gradient(135deg, #eee5f6 0%, #f3e3f1 50%, #f8e5ef 100%);
+  background-size:
+    24px 24px,
+    auto;
+}

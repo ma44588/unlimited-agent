@@ -86,10 +86,20 @@ def brand_overrides(check: bool) -> int:
     return n
 
 
+def brand_theme(check: bool) -> None:
+    """Append the Unlimited colour theme (unlayered, so it wins over upstream tokens)."""
+    src = ROOT / "unlimited" / "brand" / "theme.css"
+    dst = DESKTOP / "src" / "shared" / "styles" / "globals" / "theme.css"
+    marker = "Unlimited Solutions brand theme"
+    if src.exists() and dst.exists() and not check and marker not in dst.read_text():
+        dst.write_text(dst.read_text() + "\n" + src.read_text())
+
+
 def main() -> None:
     check = "--check" in sys.argv
     brand_tauri_conf(check)
     brand_installer(check)
+    brand_theme(check)
     print(f"overrides: {brand_overrides(check)} files")
     n = brand_ui_strings(check)
     print(f"{'would replace' if check else 'replaced'} {n} user-facing 'Buzz' occurrences; product = {NAME}")
