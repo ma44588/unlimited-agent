@@ -15,6 +15,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/unlimited/web-dist:/srv/web:ro
+      - /opt/unlimited/landing:/srv/landing:ro
       - buzz-caddy-data:/data
       - buzz-caddy-config:/config
     restart: unless-stopped

@@ -1,17 +1,32 @@
 {$BUZZ_DOMAIN} {
   encode zstd gzip
 
-  # Unlimited: browsers get the Buzz web pages (home, invites, repos); everything else
-  # (desktop/mobile websocket, NIP-11, relay HTTP API) goes to the relay unchanged.
-  @web {
+  # Unlimited: browsers get our private landing page; invites keep the Buzz web flow;
+  # desktop/mobile websocket, NIP-11 and the relay API go to the relay unchanged.
+  @browser {
     not header Upgrade *websocket*
     not header Accept *application/nostr+json*
-    path / /invite/* /repos /repos/* /assets/* /favicon* /*.svg /*.png /*.ico /*.webmanifest
   }
-  handle @web {
-    root * /srv/web
-    try_files {path} /index.html
-    file_server
+  @landing {
+    path / /brand/*
+  }
+  @webapp {
+    path /invite/* /assets/*
+  }
+  handle @browser {
+    handle @landing {
+      root * /srv/landing
+      header X-Robots-Tag "noindex, nofollow"
+      file_server
+    }
+    handle @webapp {
+      root * /srv/web
+      try_files {path} /index.html
+      file_server
+    }
+    handle {
+      reverse_proxy relay:3000
+    }
   }
   handle {
     reverse_proxy relay:3000
