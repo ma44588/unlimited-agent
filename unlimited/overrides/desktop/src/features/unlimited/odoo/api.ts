@@ -42,6 +42,34 @@ export type OutboxItem = {
   subject: string; body: string; attachments: string[]; reply: boolean;
 };
 
+export type ServerEmployee = {
+  slug: string;
+  name: string;
+  role: string;
+  pubkey: string;
+  builtin: boolean;
+  projects: string[];
+  model: "opus" | "sonnet";
+  thinking: number;
+  status: string;
+};
+export type ServerEmployeeDetails = ServerEmployee & {
+  instructions: string;
+  skills: string[];
+  skills_available: string[];
+  memory: { file: string; size: number; updated: number; preview: string }[];
+  projects_available: string[];
+};
+export type ServerEmployeeInput = {
+  name: string;
+  role: string;
+  instructions: string;
+  model: "opus" | "sonnet";
+  thinking: number;
+  skills: string[];
+  projects: string[];
+};
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly sessionExpired = false) {
     super(message);
@@ -95,7 +123,13 @@ export const odooApi = {
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
   outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
-  serverAgents: () => request<{ name: string; pubkey: string }[]>("GET", "/admin/server-agents"),
+  serverAgents: () => request<ServerEmployee[]>("GET", "/admin/server-agents"),
+  serverAgent: (slug: string) => request<ServerEmployeeDetails>("GET", `/admin/server-agents/${encodeURIComponent(slug)}`),
+  createServerAgent: (input: ServerEmployeeInput) => request<{ slug: string }>("POST", "/admin/server-agents", input),
+  updateServerAgent: (slug: string, input: Partial<ServerEmployeeInput>) =>
+    request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}`, input),
+  serverAgentAction: (slug: string, input: { do: "start" | "stop" | "restart" | "delete" | "memory_delete"; file?: string }) =>
+    request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, input),
   taskStages: (buzzId: string) =>
     request<import("@/features/unlimited/tasks/taskDesk").TaskStages>(
       "GET",

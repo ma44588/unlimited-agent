@@ -209,11 +209,16 @@ PATCHES = [
      '            <UnifiedAgentsSection\n',
      '          <div className="flex flex-col gap-8">\n'
      '            <ServerAgentsSection />\n'
+     '            {/* Unlimited: local (on-this-computer) agents and teams are not used; employees live on the server. */}\n'
+     '            <div hidden>\n'
      '            <UnifiedAgentsSection\n',
      "<ServerAgentsSection />"),
     (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
-     "              teams={teamActions.teams}\n",
-     "              teams={teamActions.teams.filter((t) => !t.isBuiltin)}\n",
+     "              teams={teamActions.teams}\n"
+     "            />\n",
+     "              teams={teamActions.teams.filter((t) => !t.isBuiltin)}\n"
+     "            />\n"
+     "            </div>\n",
      "teamActions.teams.filter("),
     # Task cycle (Task Desk): stage pill in each task row, cycle card + decisions inside a task.
     (PROJECTS_UI / "ProjectIssuesPanel.tsx",
