@@ -200,6 +200,18 @@ PATCHES = [
      "              personas={personas.libraryPersonas.filter((p) => !p.isBuiltIn)}\n",
      "libraryPersonas.filter((p) => !p.isBuiltIn)"),
     (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
+     'import { UnifiedAgentsSection } from "./UnifiedAgentsSection";\n',
+     'import { UnifiedAgentsSection } from "./UnifiedAgentsSection";\n'
+     'import { ServerAgentsSection } from "@/features/unlimited/agents/ServerAgentsSection";\n',
+     "ServerAgentsSection } from"),
+    (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
+     '          <div className="flex flex-col gap-8">\n'
+     '            <UnifiedAgentsSection\n',
+     '          <div className="flex flex-col gap-8">\n'
+     '            <ServerAgentsSection />\n'
+     '            <UnifiedAgentsSection\n',
+     "<ServerAgentsSection />"),
+    (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
      "              teams={teamActions.teams}\n",
      "              teams={teamActions.teams.filter((t) => !t.isBuiltin)}\n",
      "teamActions.teams.filter("),
