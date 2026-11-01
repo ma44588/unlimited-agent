@@ -280,6 +280,86 @@ PATCHES = [
      '          </FeatureGate>\n'
      '          <UsageSidebarEntry />\n',
      "<UsageSidebarEntry />"),
+    # Onboarding / communities: no Builderlab hosting, no local AI provider step, no Buzz help links.
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                <Card\n'
+     '                  asChild\n'
+     '                  className={COMMUNITY_OPTION_CARD_CLASS}\n'
+     '                  variant="textured"\n'
+     '                >\n'
+     '                  <button\n'
+     '                    data-testid="community-choice-create"\n'
+     '                    onClick={beginHostedCommunity}\n'
+     '                    type="button"\n'
+     '                  >\n'
+     '                    Create a community\n'
+     '                  </button>\n'
+     '                </Card>\n',
+     '                {/* Unlimited Agent: workspaces are created by Unlimited Solutions, not self-hosted here. */}\n',
+     "workspaces are created by Unlimited Solutions"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                    onClick={() => showPage("existing")}\n',
+     '                    onClick={() => showPage("member") /* unlimited: no owner/Builderlab path */}\n',
+     "unlimited: no owner/Builderlab path"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                  Join or create a community\n',
+     '                  Join your workspace\n',
+     "Join your workspace"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                  Join with an invite, create your own community, or reconnect\n'
+     '                  one you already have.\n',
+     '                  Open the invite link you received, or reconnect a workspace\n'
+     '                  you already use.\n',
+     "reconnect a workspace"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                    I already have a community\n',
+     '                    I already have a workspace\n',
+     "I already have a workspace"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                    showPage(page === "member" ? "existing" : "welcome")\n',
+     '                    showPage("welcome") /* unlimited: member back */\n',
+     "unlimited: member back"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                onClick: () => showPage("existing"),\n'
+     '                testId: "welcome-member-back",\n',
+     '                onClick: () => showPage("welcome"),\n'
+     '                testId: "welcome-member-back",\n',
+     'onClick: () => showPage("welcome"),\n                testId: "welcome-member-back"'),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "WelcomeSetup.tsx",
+     '                    onClick={() => showPage("join")}\n'
+     '                    type="button"\n'
+     '                  >\n'
+     '                    Join a community\n',
+     '                    onClick={() => showPage("join")}\n'
+     '                    type="button"\n'
+     '                  >\n'
+     '                    Join with an invite link\n',
+     "Join with an invite link"),
+    (DESKTOP / "src" / "features" / "communities" / "ui" / "AddCommunityDialog.tsx",
+     '                className={OPTION_CLASS}\n'
+     '                data-testid="add-community-create"\n',
+     '                className="hidden" /* unlimited: no Builderlab hosting */\n'
+     '                data-testid="add-community-create"\n',
+     "unlimited: no Builderlab hosting"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsView.tsx",
+     '    sections: ["hosted-communities", "community-members", "relay-admin"],\n',
+     '    sections: ["community-members", "relay-admin"],\n',
+     'sections: ["community-members", "relay-admin"]'),
+    (DESKTOP / "src" / "features" / "onboarding" / "welcomeCanvas.ts",
+     'or read the [Buzz user guide](https://github.com/block/buzz#readme).',
+     'or message Unlimited Solutions support.',
+     "message Unlimited Solutions support"),
+    (DESKTOP / "src" / "features" / "onboarding" / "ui" / "MachineOnboardingFlow.tsx",
+     '  const chromeBackAction =\n',
+     '  // Unlimited Agent: AI runs on the server employees, so people never connect an AI provider here.\n'
+     '  React.useEffect(() => {\n'
+     '    if (page === "setup") {\n'
+     '      complete(selectedPubkey ?? undefined, { continueToProfile: !identityWasImported });\n'
+     '    }\n'
+     '    // eslint-disable-next-line react-hooks/exhaustive-deps\n'
+     '  }, [page]);\n\n'
+     '  const chromeBackAction =\n',
+     "never connect an AI provider here"),
     # Workspaces (platform owner): its own page under Usage (route /workspaces).
     (DESKTOP / "src" / "app" / "routes.ts",
      '  route("/usage", "usage.tsx"),\n',
