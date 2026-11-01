@@ -51,6 +51,7 @@ export function ConnectOdooWizard({
   const [busy, setBusy] = React.useState(false);
   const [saved, setSaved] = React.useState<OdooProject | null>(null);
   const [checks, setChecks] = React.useState<CheckStep[] | null>(null);
+  const [hosting, setHosting] = React.useState<"odoosh" | "cicdoo">("odoosh");
 
   React.useEffect(() => {
     if (!open) return;
@@ -79,7 +80,7 @@ export function ConnectOdooWizard({
   const filtered = (projects ?? []).filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
 
   const canNext =
-    step === 0 || (step === 1 && Boolean(odooSh) && stagingBranches.some((b) => b.name === branch)) || step === 2;
+    (step === 0 && hosting === "odoosh") || (step === 1 && Boolean(odooSh) && stagingBranches.some((b) => b.name === branch)) || step === 2;
 
   async function connect() {
     setBusy(true);
@@ -124,22 +125,47 @@ export function ConnectOdooWizard({
           {step === 0 ? (
             <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <legend className="mb-3 text-sm font-semibold">Where does this client's Odoo run?</legend>
-              <label className="flex cursor-pointer flex-col gap-2 rounded-xl border border-primary bg-primary/5 p-4">
+              <label
+                className={cn(
+                  "flex cursor-pointer flex-col gap-2 rounded-xl border p-4",
+                  hosting === "odoosh" ? "border-primary bg-primary/5" : "border-border/70",
+                )}
+              >
                 <span className="flex items-center gap-2 text-sm font-semibold">
                   <Cloud className="h-4 w-4 text-primary" /> Odoo.sh
-                  <input checked className="ml-auto accent-[hsl(var(--primary))]" name="hosting" readOnly type="radio" />
+                  <input
+                    checked={hosting === "odoosh"}
+                    className="ml-auto accent-[hsl(var(--primary))]"
+                    name="hosting"
+                    onChange={() => setHosting("odoosh")}
+                    type="radio"
+                  />
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Picked straight from your Odoo.sh account. Builds, logs and staging are followed automatically.
                 </span>
               </label>
-              <label aria-disabled className="flex flex-col gap-2 rounded-xl border border-border/70 p-4 opacity-60">
+              <label
+                className={cn(
+                  "flex cursor-pointer flex-col gap-2 rounded-xl border p-4",
+                  hosting === "cicdoo" ? "border-primary bg-primary/5" : "border-border/70",
+                )}
+              >
                 <span className="flex items-center gap-2 text-sm font-semibold">
-                  <Server className="h-4 w-4" /> Own server
-                  <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium">Soon</span>
+                  <Server className="h-4 w-4" /> Own server (CICDoo)
+                  <input
+                    checked={hosting === "cicdoo"}
+                    className="ml-auto accent-[hsl(var(--primary))]"
+                    name="hosting"
+                    onChange={() => setHosting("cicdoo")}
+                    type="radio"
+                  />
                 </span>
-                <span className="text-xs text-muted-foreground">Client servers and Odoo Online, through a staging copy.</span>
+                <span className="text-xs text-muted-foreground">
+                  Your servers on CICDoo. Agents work on a staging instance only.
+                </span>
               </label>
+              {hosting === "cicdoo" ? <CicdooConnect /> : null}
             </fieldset>
           ) : null}
 
@@ -313,6 +339,79 @@ function Row({ label, value, icon }: { label: string; value: string; icon?: Reac
     <div className="flex items-center gap-3 px-4 py-3">
       <dt className="w-44 shrink-0 text-muted-foreground">{label}</dt>
       <dd className="flex min-w-0 items-center gap-2 truncate font-medium">{icon}{value}</dd>
+    </div>
+  );
+}
+
+
+/** Connect CICDoo once with an API token. The token goes straight to the server and is never shown again. */
+function CicdooConnect() {
+  const [status, setStatus] = React.useState<import("./api").CicdooStatus | null>(null);
+  const [token, setToken] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    odooApi.cicdooStatus().then(setStatus).catch((e: Error) => setError(e.message));
+  }, []);
+
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    try {
+      await odooApi.cicdooConnect(token.trim());
+      setToken("");
+      setStatus(await odooApi.cicdooStatus());
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="col-span-full flex flex-col gap-3 rounded-xl border border-border/70 p-4">
+      {status === null && !error ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Checking CICDoo…
+        </p>
+      ) : status?.connected ? (
+        <>
+          <p className="flex items-center gap-2 text-sm text-foreground">
+            <CircleCheck className="h-4 w-4 text-emerald-600" /> CICDoo is connected.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Picking CICDoo projects and staging instances here arrives in the next update.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-foreground">Connect your CICDoo account</p>
+          <p className="text-xs text-muted-foreground">
+            In CICDoo open Settings, then Security, then API Tokens, and create a token with read and actions.
+            Paste it here. It is stored on the server only and never shown again.
+          </p>
+          <div className="flex gap-2">
+            <input
+              aria-label="CICDoo API token"
+              autoComplete="off"
+              className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="cdo_…"
+              type="password"
+              value={token}
+            />
+            <Button disabled={busy || !token.trim()} onClick={() => void connect()} size="sm" type="button">
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />} Connect
+            </Button>
+          </div>
+        </>
+      )}
+      {error ? (
+        <p className="flex items-center gap-2 text-xs text-destructive">
+          <CircleX className="h-3.5 w-3.5" /> {error}
+        </p>
+      ) : null}
     </div>
   );
 }

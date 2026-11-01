@@ -155,6 +155,8 @@ export async function request<T>(method: "GET" | "POST", path: string, body?: un
   return data.result as T;
 }
 
+export type CicdooStatus = { connected: boolean; tools?: string[]; error?: string };
+
 export const odooApi = {
   overview: () => request<Overview>("GET", "/admin/overview"),
   odooShProjects: () => request<OdooShProject[]>("GET", "/admin/odoosh/projects"),
@@ -185,6 +187,9 @@ export const odooApi = {
     ),
   decideEmail: (aid: string, decision: "approve" | "reject", edits?: { subject?: string; body?: string }) =>
     request<{ sent?: boolean }>("POST", `/admin/outbox/${aid}`, { decision, ...(edits ? { edits } : {}) }),
+  cicdooStatus: () => request<CicdooStatus>("GET", "/admin/providers/cicdoo"),
+  cicdooConnect: (token: string) => request<{ connected: boolean; tools?: number }>("POST", "/admin/providers/cicdoo", { token }),
+  cicdooDisconnect: () => request<{ connected: boolean }>("POST", "/admin/providers/cicdoo", { disconnect: true }),
   decide: (aid: string, decision: "approve" | "reject") =>
     request<{ id: string }>("POST", `/admin/approvals/${aid}`, { decision }),
 };
@@ -356,5 +361,11 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
     demoState.approvals = demoState.approvals.filter((a) => a.id !== m![1]);
     return { id: m[1] } as T;
   }
+  if (path === "/admin/providers/cicdoo" && method === "GET") return { connected: demoCicdoo, tools: demoCicdoo ? ["list_projects"] : [] } as T;
+  if (path === "/admin/providers/cicdoo") {
+    demoCicdoo = !(body as { disconnect?: boolean }).disconnect;
+    return { connected: demoCicdoo, tools: 1 } as T;
+  }
   throw new ApiError("Not found", 404);
 }
+let demoCicdoo = false;
