@@ -79,6 +79,21 @@ jobs:
           # Shape check only (never prints the key): PEM header, line count, parses as a private key.
           echo "first line: $(head -1 "$K")"; echo "lines: $(wc -l < "$K")"
           openssl pkey -in "$K" -noout && echo "key parses OK" || { echo "::error::ASC_KEY_P8 is not a valid .p8 private key"; exit 1; }
+      - name: Check the key against the App Store Connect API
+        run: |
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography 2>/dev/null || python3 -m pip install --quiet pyjwt cryptography
+          python3 - <<PY
+          import os, time, jwt, urllib.request, urllib.error
+          kid, iss = os.environ["ASC_KEY_ID"], os.environ["ASC_ISSUER_ID"]
+          key = open(os.path.expanduser(f"~/.appstoreconnect/private_keys/AuthKey_{kid}.p8")).read()
+          tok = jwt.encode({"iss": iss, "iat": int(time.time()), "exp": int(time.time()) + 600, "aud": "appstoreconnect-v1"},
+                           key, algorithm="ES256", headers={"kid": kid, "typ": "JWT"})
+          req = urllib.request.Request("https://api.appstoreconnect.apple.com/v1/apps?limit=5", headers={"Authorization": "Bearer " + tok})
+          try:
+              r = urllib.request.urlopen(req, timeout=30); print("ASC API:", r.status)
+          except urllib.error.HTTPError as e:
+              print("ASC API:", e.code, e.read()[:300]); raise SystemExit(1)
+          PY
       - name: Build archive (automatic signing through the API key)
         run: |
           cd mobile
