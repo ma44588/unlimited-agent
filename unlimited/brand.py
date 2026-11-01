@@ -165,6 +165,34 @@ PATCHES = [
      '        if (!cancelled) setAgents([...remote, ...nextAgents]);\n'
      '      })\n',
      "loadServerAgents()])"),
+    # git runs credential helpers through the shell, so the bundled helper path
+    # "/Applications/Unlimited Agent.app/..." splits at the space and project git auth fails.
+    # Quote the path whenever it holds shell-special characters (paths without them are unchanged).
+    (DESKTOP / "src-tauri" / "src" / "commands" / "project_git_exec.rs",
+     "fn credential_helper_config_value(path: &std::path::Path) -> String {\n"
+     "    path.to_string_lossy().replace('\\\\', \"/\")\n"
+     "}\n",
+     "fn credential_helper_config_value(path: &std::path::Path) -> String {\n"
+     "    let value = path.to_string_lossy().replace('\\\\', \"/\");\n"
+     "    // Unlimited: quote paths with spaces (app bundle is \"Unlimited Agent.app\").\n"
+     "    if value.chars().any(|c| c.is_whitespace() || \"'\\\"$`;&|<>()*?![]{}#~\".contains(c)) {\n"
+     "        // `!` makes git run the value as a shell snippet; a bare quoted path would be\n"
+     "        // read as a helper *name* (\"git credential-'...'\").\n"
+     "        format!(\"!'{}'\", value.replace('\\'', \"'\\\\''\"))\n"
+     "    } else {\n"
+     "        value\n"
+     "    }\n"
+     "}\n\n"
+     "#[cfg(test)]\n"
+     "#[test]\n"
+     "fn unlimited_credential_helper_path_with_space_is_quoted() {\n"
+     "    let path = std::path::PathBuf::from(\"/Applications/Unlimited Agent.app/Contents/MacOS/git-credential-nostr\");\n"
+     "    assert_eq!(\n"
+     "        credential_helper_config_value(&path),\n"
+     "        \"!'/Applications/Unlimited Agent.app/Contents/MacOS/git-credential-nostr'\",\n"
+     "    );\n"
+     "}\n",
+     "Unlimited: quote paths with spaces"),
 ]
 
 
