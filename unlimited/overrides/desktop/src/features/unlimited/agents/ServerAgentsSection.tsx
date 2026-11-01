@@ -78,14 +78,14 @@ export function ServerAgentsSection() {
                 key={agent.pubkey}
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <UserAvatar avatarUrl={null} displayName={agent.name} shape="squircle" size="md" />
+                  <UserAvatar avatarUrl={agent.avatar || null} displayName={agent.name} shape="squircle" size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-semibold text-foreground">{agent.name}</span>
                       <StatusPill status={agent.status} />
                     </div>
-                    <p className="truncate text-xs text-muted-foreground" dir="rtl" title={agent.role}>
-                      {agent.role || "موظف على السيرفر"}
+                    <p className="truncate text-xs text-muted-foreground" dir="rtl" title={agent.about || agent.role}>
+                      {agent.about || agent.role || "موظف على السيرفر"}
                     </p>
                   </div>
                 </div>

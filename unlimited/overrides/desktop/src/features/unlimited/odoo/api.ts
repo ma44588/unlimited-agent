@@ -42,15 +42,23 @@ export type OutboxItem = {
   subject: string; body: string; attachments: string[]; reply: boolean;
 };
 
+export type ServerModel = "opus" | "sonnet" | "haiku";
+export type ServerRespondTo = "owner-only" | "allowlist" | "anyone";
+export type ServerMcpServer = { name: string; url: string; headers: Record<string, string> };
+
 export type ServerEmployee = {
   slug: string;
   name: string;
   role: string;
+  about?: string;
+  avatar?: string;
   pubkey: string;
   builtin: boolean;
   projects: string[];
-  model: "opus" | "sonnet";
+  model: ServerModel;
   thinking: number;
+  respond_to?: ServerRespondTo;
+  allow?: string[];
   status: string;
 };
 export type ServerEmployeeDetails = ServerEmployee & {
@@ -59,15 +67,23 @@ export type ServerEmployeeDetails = ServerEmployee & {
   skills_available: string[];
   memory: { file: string; size: number; updated: number; preview: string }[];
   projects_available: string[];
+  env: Record<string, string>;
+  mcp: ServerMcpServer[];
 };
 export type ServerEmployeeInput = {
   name: string;
   role: string;
+  about: string;
+  avatar: string;
   instructions: string;
-  model: "opus" | "sonnet";
+  model: ServerModel;
   thinking: number;
   skills: string[];
   projects: string[];
+  respond_to: ServerRespondTo;
+  allow: string[];
+  env: Record<string, string>;
+  mcp: ServerMcpServer[];
 };
 
 export class ApiError extends Error {
@@ -152,6 +168,15 @@ const demoState: { projects: Record<string, OdooProject>; approvals: Approval[] 
     },
   ],
 };
+const DEMO_EMPLOYEES: ServerEmployee[] = [
+  { slug: "developer", name: "Developer", role: "مطوّر Odoo: تحليل، تنفيذ على stag، متابعة الـ build والاختبار",
+    about: "Odoo developer on the Unlimited server", avatar: "", pubkey: "e".repeat(64), builtin: true, projects: ["*"],
+    model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
+  { slug: "documentation", name: "Documentation", role: "توثيق: شرح التغييرات للفريق ودليل المستخدم",
+    about: "", avatar: "", pubkey: "d".repeat(64), builtin: true, projects: ["*"],
+    model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
+];
+
 let demoOutbox: OutboxItem[] = [
   {
     id: "m1", ts: new Date().toISOString(), agent: "sales", mailbox: "sales", from: "sales@unlimitedsolutions.technology",
@@ -228,8 +253,21 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
     ] } as T;
   }
   if (path === "/admin/outbox") return demoOutbox as T;
-  if (path === "/admin/server-agents")
-    return [{ name: "Developer", pubkey: "e".repeat(64) }, { name: "Documentation", pubkey: "d".repeat(64) }] as T;
+  if (path === "/admin/server-agents" && method === "GET") return DEMO_EMPLOYEES as T;
+  if ((m = path.match(/^\/admin\/server-agents\/([a-z0-9-]+)$/)) && method === "GET") {
+    const row = DEMO_EMPLOYEES.find((e) => e.slug === m![1]) ?? DEMO_EMPLOYEES[0];
+    return {
+      ...row,
+      instructions: `You are the ${row.name} of Unlimited Solutions, an Odoo partner.\n\nWork loop for every task: understand, plan, code on stag, test on staging, report.`,
+      skills: row.slug === "developer" ? ["odoo-module-development", "odoo-sh-delivery"] : ["odoo-user-guide"],
+      skills_available: ["odoo-module-development", "odoo-sh-delivery", "odoo-user-guide"],
+      memory: [{ file: "MEMORY.md", size: 2140, updated: Math.floor(Date.now() / 1000) - 3600, preview: "# Lessons\n- Always bump the manifest version." }],
+      projects_available: ["diraty"],
+      env: { ODOO_DEFAULT_LANG: "ar_001" },
+      mcp: [],
+    } as T;
+  }
+  if (path.startsWith("/admin/server-agents")) return { slug: "demo" } as T;
   if ((m = path.match(/^\/admin\/outbox\/(.+)$/))) {
     demoOutbox = demoOutbox.filter((x) => x.id !== m![1]);
     return { sent: (body as { decision: string }).decision === "approve" } as T;
