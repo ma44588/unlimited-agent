@@ -393,6 +393,19 @@ PATCHES = [
      '            .any(|&(px, py)| (x - px) * (x - px) + (y - py) * (y - py) <= HALF_STROKE * HALF_STROKE)\n'
      '    }\n',
      "the infinity mark (a lemniscate stroke)"),
+    # Settings: no local agents / shared compute (AI runs on the server); our own update feed.
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsView.tsx",
+     '    sections: ["agents", "compute", "experimental", "mobile", "updates"],\n',
+     '    sections: ["experimental", "mobile", "updates"],\n',
+     'sections: ["experimental", "mobile", "updates"]'),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     'import { UpdateChecker } from "../UpdateChecker";\n',
+     'import { UnlimitedUpdatesCard } from "@/features/unlimited/updates/UnlimitedUpdatesCard";\n',
+     "UnlimitedUpdatesCard }"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '      return <UpdateChecker />;\n',
+     '      return <UnlimitedUpdatesCard />;\n',
+     "<UnlimitedUpdatesCard />"),
     # Workspaces (platform owner): its own page under Usage (route /workspaces).
     (DESKTOP / "src" / "app" / "routes.ts",
      '  route("/usage", "usage.tsx"),\n',
