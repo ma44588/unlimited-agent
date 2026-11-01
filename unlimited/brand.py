@@ -280,6 +280,24 @@ PATCHES = [
      '          </FeatureGate>\n'
      '          <UsageSidebarEntry />\n',
      "<UsageSidebarEntry />"),
+    # Workspaces (platform owner): its own page under Usage (route /workspaces).
+    (DESKTOP / "src" / "app" / "routes.ts",
+     '  route("/usage", "usage.tsx"),\n',
+     '  route("/usage", "usage.tsx"),\n  route("/workspaces", "workspaces.tsx"),\n',
+     'route("/workspaces"'),
+    (DESKTOP / "src" / "app" / "AppShell.helpers.ts",
+     '  if (pathname === "/usage" || pathname === "/projects"',
+     '  if (pathname === "/usage" || pathname === "/workspaces" || pathname === "/projects"',
+     'pathname === "/workspaces"'),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     'import { UsageSidebarEntry } from "@/features/unlimited/usage/UsageSidebarEntry";\n',
+     'import { UsageSidebarEntry } from "@/features/unlimited/usage/UsageSidebarEntry";\n'
+     'import { WorkspacesSidebarEntry } from "@/features/unlimited/workspaces/WorkspacesSidebarEntry";\n',
+     "WorkspacesSidebarEntry }"),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     '          <UsageSidebarEntry />\n',
+     '          <UsageSidebarEntry />\n          <WorkspacesSidebarEntry />\n',
+     "<WorkspacesSidebarEntry />"),
 ]
 
 
@@ -398,10 +416,15 @@ def brand_patches(check: bool) -> int:
 
 
 def brand_usage_route(check: bool) -> None:
-    """Add /usage to the generated route tree (mirrors the /agents entries)."""
+    """Add our top-level pages to the generated route tree (mirrors the /agents entries)."""
+    for name in ("usage", "workspaces"):
+        brand_route(name, check)
+
+
+def brand_route(name: str, check: bool) -> None:
     path = DESKTOP / "src" / "app" / "routeTree.gen.ts"
     text = path.read_text()
-    if "usageRoute" in text:
+    if f"{name}Route" in text:
         return
     pairs = [
         ('import { Route as agentsRouteImport } from "./routes/agents";\n',
@@ -419,6 +442,7 @@ def brand_usage_route(check: bool) -> None:
          '      preLoaderRoute: typeof usageRouteImport;\n      parentRoute: typeof rootRouteImport;\n    };\n'),
         ('  agentsRoute: agentsRoute,\n', '  usageRoute: usageRoute,\n'),
     ]
+    pairs = [(a, e.replace("usage", name)) for a, e in pairs]
     for anchor, extra in pairs:
         if anchor not in text:
             raise SystemExit(f"brand.py: route tree anchor missing: {anchor.strip()[:40]}")

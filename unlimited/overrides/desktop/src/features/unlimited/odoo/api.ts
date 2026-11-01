@@ -120,7 +120,7 @@ export class ApiError extends Error {
   }
 }
 
-const isDemo = () => typeof window !== "undefined" && Boolean((window as { __BUZZ_E2E__?: unknown }).__BUZZ_E2E__);
+export const isDemo = () => typeof window !== "undefined" && Boolean((window as { __BUZZ_E2E__?: unknown }).__BUZZ_E2E__);
 
 function b64(text: string): string {
   const bytes = new TextEncoder().encode(text);
@@ -134,7 +134,7 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
   if (isDemo()) return demo<T>(method, path, body);
   const url = UNLIMITED_API + path;
   const payload = body === undefined ? "" : JSON.stringify(body);
