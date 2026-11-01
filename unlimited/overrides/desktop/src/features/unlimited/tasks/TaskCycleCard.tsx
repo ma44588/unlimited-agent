@@ -29,6 +29,7 @@ import {
   useSetTaskStatusMutation,
   useTaskStages,
 } from "./taskDesk";
+import { TaskStepDetails } from "./TaskStepDetails";
 
 function Stepper({ stage }: { stage: TaskStage | undefined }) {
   const active = activeStepIndex(stage?.stage);
@@ -248,6 +249,8 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
           </div>
         )
       ) : null}
+
+      {stage?.steps?.length ? <TaskStepDetails steps={stage.steps} /> : null}
     </section>
   );
 }

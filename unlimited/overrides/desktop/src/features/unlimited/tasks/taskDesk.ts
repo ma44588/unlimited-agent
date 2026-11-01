@@ -23,8 +23,21 @@ export type TaskStageKey =
   | "done"
   | "cancelled";
 
+export type TaskStepTokens = { input: number; output: number; cache_read: number; cache_write: number; turns: number };
+
+/** One finished or running stage: when it started, how long it took, who worked on it and the tokens used. */
+export type TaskStepDetail = {
+  stage: TaskStageKey;
+  start: number;
+  end: number | null;
+  seconds: number;
+  worker: "developer" | "documentation" | "owner";
+  tokens?: TaskStepTokens;
+};
+
 export type TaskStage = {
   stage: TaskStageKey;
+  steps?: TaskStepDetail[];
   since: number;
   round?: number;
   history?: [number, string][];
@@ -47,7 +60,15 @@ export function stageFor(data: TaskStages, issueId: string): TaskStage | undefin
   if (!data.demo) return data.stages[issueId];
   const n = [...issueId].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const stage = DEMO_ORDER[n % DEMO_ORDER.length];
-  return { stage, since: Math.floor(Date.now() / 1000) - ((n % 50) + 2) * 60, round: 1 };
+  const since = Math.floor(Date.now() / 1000) - ((n % 50) + 2) * 60;
+  const t = (k: number, i: number, o: number) => ({ input: k, output: o, cache_read: i, cache_write: Math.round(i / 9), turns: 12 });
+  const steps: TaskStepDetail[] = [
+    { stage: "planning", start: since - 1500, end: since - 1350, seconds: 150, worker: "developer", tokens: t(820, 182000, 6400) },
+    { stage: "awaiting_approval", start: since - 1350, end: since - 1260, seconds: 90, worker: "owner" },
+    { stage: "executing", start: since - 1260, end: since - 730, seconds: 530, worker: "developer", tokens: t(2400, 1310000, 21800) },
+    { stage: "in_review", start: since - 730, end: since, seconds: 730, worker: "owner" },
+  ];
+  return { stage, since, round: 1, steps };
 }
 
 /** The eight steps of the cycle, in order. */
