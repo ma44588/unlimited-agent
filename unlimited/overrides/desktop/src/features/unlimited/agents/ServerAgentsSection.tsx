@@ -54,7 +54,7 @@ export function ServerAgentsSection() {
       const dm = await openDm.mutateAsync({ pubkeys: [pubkey] });
       await navigate({ to: "/channels/$channelId", params: { channelId: dm.id } });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "تعذر فتح المحادثة.");
+      toast.error(error instanceof Error ? error.message : "Could not open the chat.");
     } finally {
       setOpening(null);
     }
@@ -64,8 +64,8 @@ export function ServerAgentsSection() {
     <section className="space-y-3" data-testid="server-agents-section">
       <div className="space-y-0.5">
         <h2 className="text-base font-semibold text-foreground">Server employees</h2>
-        <p className="text-sm text-muted-foreground" dir="rtl">
-          موظفين الشركة اللي شغالين على السيرفر طول الوقت. تقدر تكلمهم، تعدّل إعداداتهم، تضيفهم للقنوات والمكالمات، وتعيّن لهم تاسكات.
+        <p className="text-sm text-muted-foreground">
+          The company’s employees that run on the server around the clock. Message them, change their settings, add them to channels and calls, and assign them tasks.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -84,8 +84,8 @@ export function ServerAgentsSection() {
                       <span className="truncate text-sm font-semibold text-foreground">{agent.name}</span>
                       <StatusPill status={agent.status} />
                     </div>
-                    <p className="truncate text-xs text-muted-foreground" dir="rtl" title={agent.about || agent.role}>
-                      {agent.about || agent.role || "موظف على السيرفر"}
+                    <p className="truncate text-xs text-muted-foreground" title={agent.about || agent.role}>
+                      {agent.about || agent.role || "Server employee"}
                     </p>
                   </div>
                 </div>

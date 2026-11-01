@@ -3,10 +3,12 @@
  * A chip per file; clicking opens it inside the app: Markdown rendered, images and PDFs shown as they are.
  */
 import { useQuery } from "@tanstack/react-query";
-import { Copy, FileText, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Copy, FileText, Image as ImageIcon, Loader2, Paperclip } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
+import type { ProjectIssue } from "@/features/projects/hooks";
+import { ProjectDetailMetaRow } from "@/features/projects/ui/ProjectDetailMeta";
 import { ProjectRichContent } from "@/features/projects/ui/ProjectRichContent";
 import { type AgentFile, odooApi } from "@/features/unlimited/odoo/api";
 import { cn } from "@/shared/lib/cn";
@@ -53,15 +55,15 @@ export function AgentFileViewer({ name, onOpenChange }: { name: string | null; o
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle dir="ltr">{name}</DialogTitle>
-          <DialogDescription>{file ? `${sizeLabel(file.size)} · من مجلد ملفات الموظفين على السيرفر` : " "}</DialogDescription>
+          <DialogDescription>{file ? `${sizeLabel(file.size)} · from the employees’ files on the server` : " "}</DialogDescription>
         </DialogHeader>
         <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-border/60 bg-background p-4">
           {query.isLoading ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> بيحمّل الملف…
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading the file…
             </p>
           ) : query.isError ? (
-            <p className="text-sm text-destructive">{query.error instanceof Error ? query.error.message : "تعذر فتح الملف."}</p>
+            <p className="text-sm text-destructive">{query.error instanceof Error ? query.error.message : "Could not open the file."}</p>
           ) : file && file.mime === "text/markdown" ? (
             <div dir="auto">
               <ProjectRichContent className="text-sm text-foreground/90" content={text} />
@@ -75,19 +77,19 @@ export function AgentFileViewer({ name, onOpenChange }: { name: string | null; o
           ) : file && file.mime === "application/pdf" ? (
             <iframe className="h-[65vh] w-full rounded" src={`data:application/pdf;base64,${file.data}`} title={file.name} />
           ) : file ? (
-            <p className="text-sm text-muted-foreground">النوع ده مش بيتعرض جوه التطبيق ({file.mime}).</p>
+            <p className="text-sm text-muted-foreground">This file type can’t be shown in the app ({file.mime}).</p>
           ) : null}
         </div>
         {file && isText ? (
           <div className="flex justify-end">
             <Button
               onClick={() => {
-                void navigator.clipboard.writeText(text).then(() => toast.success("اتنسخ."));
+                void navigator.clipboard.writeText(text).then(() => toast.success("Copied."));
               }}
               size="sm"
               variant="outline"
             >
-              <Copy /> انسخ المحتوى
+              <Copy /> Copy
             </Button>
           </div>
         ) : null}
@@ -117,22 +119,31 @@ export function AgentFileChip({ file, onOpen }: { file: AgentFile; onOpen: (name
   );
 }
 
-/** The files a task's comments mention (by name or OUTBOX path), shown as chips. */
-export function TaskFiles({ texts }: { texts: string[] }) {
+/** "Files" row in a task's details: every employee file the task mentions, each with a View button. */
+export function TaskFilesRow({ issue }: { issue: ProjectIssue }) {
   const filesQuery = useAgentFiles();
   const [open, setOpen] = React.useState<string | null>(null);
-  const joined = texts.join("\n");
+  const joined = [issue.content ?? "", ...issue.comments.map((c) => c.content)].join("\n");
   const mentioned = (filesQuery.data ?? []).filter((f) => joined.includes(f.name));
   if (mentioned.length === 0) return null;
   return (
-    <div className="space-y-2" data-testid="task-files">
-      <p className="text-xs font-semibold text-muted-foreground">ملفات التاسك</p>
-      <div className="flex flex-wrap gap-2">
-        {mentioned.map((f) => (
-          <AgentFileChip file={f} key={f.name} onOpen={setOpen} />
-        ))}
+    <ProjectDetailMetaRow icon={Paperclip} label="Files">
+      <div className="flex min-w-0 flex-col gap-1.5" data-testid="task-files">
+        {mentioned.map((f) => {
+          const Icon = f.mime.startsWith("image/") ? ImageIcon : FileText;
+          return (
+            <div className="flex min-w-0 items-center gap-2" key={f.name}>
+              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate font-medium text-foreground">{f.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{sizeLabel(f.size)}</span>
+              <Button className="h-6 px-2.5 text-xs" onClick={() => setOpen(f.name)} size="sm" type="button">
+                View
+              </Button>
+            </div>
+          );
+        })}
       </div>
       <AgentFileViewer name={open} onOpenChange={(o) => !o && setOpen(null)} />
-    </div>
+    </ProjectDetailMetaRow>
   );
 }

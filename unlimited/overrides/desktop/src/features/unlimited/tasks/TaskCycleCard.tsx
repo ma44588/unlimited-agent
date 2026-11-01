@@ -29,7 +29,6 @@ import {
   useSetTaskStatusMutation,
   useTaskStages,
 } from "./taskDesk";
-import { TaskFiles } from "./AgentFiles";
 import { TaskStepDetails } from "./TaskStepDetails";
 
 function Stepper({ stage }: { stage: TaskStage | undefined }) {
@@ -106,16 +105,16 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
       setDraft("");
       void stagesQuery.refetch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "تعذر الإرسال.");
+      toast.error(error instanceof Error ? error.message : "Could not send.");
     }
   }
 
   async function close(status: "done" | "closed") {
     try {
       await setStatus.mutateAsync({ issue, status });
-      toast.success(status === "done" ? "اتقفل Done. Documentation هيكتب الملخص." : "التاسك اتلغى.");
+      toast.success(status === "done" ? "Closed as Done. Documentation will write the team summary." : "Task cancelled.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "تعذر تحديث التاسك.");
+      toast.error(error instanceof Error ? error.message : "Could not update the task.");
     }
   }
 
@@ -123,14 +122,14 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
     <section
       className="mx-6 mb-4 mt-1 space-y-4 rounded-xl border border-border/70 bg-muted/25 p-4"
       data-testid="task-cycle-card"
-      dir="rtl"
+      dir="ltr"
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-foreground">دورة التاسك</h4>
+        <h4 className="text-sm font-semibold text-foreground">Task cycle</h4>
         {stage ? (
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             {stage.round && stage.round > 1 && stage.stage !== "cancelled" ? (
-              <span className="tabular-nums">نسخة الخطة {stage.round}</span>
+              <span className="tabular-nums">Plan v{stage.round}</span>
             ) : null}
             <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TONE_CLASS[STAGE_TONE[stage.stage]])}>
               {STAGE_LABEL[stage.stage]}
@@ -141,29 +140,29 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
       </header>
 
       {stage?.stage === "cancelled" ? (
-        <p className="text-sm text-muted-foreground">التاسك اتلغى، ومفيش شغل عليه.</p>
+        <p className="text-sm text-muted-foreground">This task was cancelled. No work is running on it.</p>
       ) : (
         <Stepper stage={stage} />
       )}
 
       {!stage && !developerAssigned ? (
         <p className="text-sm text-muted-foreground">
-          عيّن التاسك لـ <span className="font-medium text-foreground">Developer</span> من خانة Assignees علشان يبدأ يكتب الخطة.
+          Assign the task to <span className="font-medium text-foreground">Developer</span> in Assignees to start the plan.
         </p>
       ) : null}
       {!stage && developerAssigned ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Task Desk هيصحّي Developer خلال ثواني.
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Task Desk is waking Developer up…
         </p>
       ) : null}
       {stage?.stage === "planning" || stage?.stage === "executing" || stage?.stage === "documenting" ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {stage.stage === "planning"
-            ? "Developer بيحلل الداتابيز والكود وطريقة الشغل وبيكتب الخطة."
+            ? "Developer is studying the database, the code and the workflow, and writing the plan."
             : stage.stage === "executing"
-              ? "Developer بينفذ على stag ويتابع الـ build ويختبر على staging."
-              : "Documentation بيكتب ملخص للفريق."}
+              ? "Developer is building on stag, following the build and testing on staging."
+              : "Documentation is writing the team summary."}
         </p>
       ) : null}
 
@@ -176,7 +175,7 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
           data-testid={awaiting ? "task-cycle-plan" : "task-cycle-result"}
         >
           <p className="text-xs font-semibold text-muted-foreground">
-            {awaiting ? "الخطة اللي مستنية موافقتك" : "نتيجة التنفيذ والاختبار"}
+            {awaiting ? "Plan waiting for your approval" : "Build and test result"}
           </p>
           <div className="max-h-[28rem] overflow-y-auto" dir="auto">
             <ProjectRichContent className="text-sm text-foreground/90" content={focus.content} tags={focus.tags} />
@@ -191,19 +190,19 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
               autoFocus
               id="task-cycle-change-request"
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={awaiting ? "اكتب التعديل اللي عايزه في الخطة…" : "اكتب الملاحظة اللي عايز Developer يصلحها…"}
+              placeholder={awaiting ? "Write the change you want in the plan…" : "Write what Developer should fix…"}
               value={draft}
             />
             <div className="flex flex-wrap gap-2">
               <Button
                 disabled={busy || draft.trim().length < 3}
-                onClick={() => void post(draft.trim(), "اتبعت. Developer هيرجعلك بنسخة جديدة.")}
+                onClick={() => void post(draft.trim(), "Sent. Developer will come back with a new version.")}
                 size="sm"
               >
-                <PenLine /> ابعت
+                <PenLine /> Send
               </Button>
               <Button disabled={busy} onClick={() => setMode("idle")} size="sm" variant="ghost">
-                رجوع
+                Back
               </Button>
             </div>
           </div>
@@ -214,13 +213,13 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
                 <Button
                   className="bg-sky-600 text-white hover:bg-sky-600/90"
                   disabled={busy}
-                  onClick={() => void post("موافق، ابدأ", "اتوافق على الخطة. التنفيذ هيبدأ.")}
+                  onClick={() => void post("Approved, start", "Plan approved. The build starts now.")}
                   size="sm"
                 >
-                  <Play /> موافق، ابدأ
+                  <Play /> Approve and start
                 </Button>
                 <Button disabled={busy} onClick={() => setMode("change")} size="sm" variant="outline">
-                  <PenLine /> اطلب تعديل
+                  <PenLine /> Request changes
                 </Button>
               </>
             ) : (
@@ -231,10 +230,10 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
                   onClick={() => void close("done")}
                   size="sm"
                 >
-                  <Check /> تمام، اقفل Done
+                  <Check /> Looks good, close as Done
                 </Button>
                 <Button disabled={busy} onClick={() => setMode("change")} size="sm" variant="outline">
-                  <RotateCcw /> رجّعه بملاحظة
+                  <RotateCcw /> Send back with a note
                 </Button>
               </>
             )}
@@ -245,13 +244,11 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
               size="sm"
               variant="ghost"
             >
-              <CircleSlash /> إلغاء التاسك
+              <CircleSlash /> Cancel task
             </Button>
           </div>
         )
       ) : null}
-
-      <TaskFiles texts={[issue.content ?? "", ...issue.comments.map((c) => c.content)]} />
 
       {stage?.steps?.length ? <TaskStepDetails steps={stage.steps} /> : null}
     </section>

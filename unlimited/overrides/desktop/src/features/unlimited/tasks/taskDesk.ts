@@ -73,14 +73,14 @@ export function stageFor(data: TaskStages, issueId: string): TaskStage | undefin
 
 /** The eight steps of the cycle, in order. */
 export const TASK_STEPS: { key: string; label: string; who: "you" | "agent" | "auto" }[] = [
-  { key: "request", label: "الطلب", who: "you" },
-  { key: "planning", label: "الخطة", who: "agent" },
-  { key: "awaiting_approval", label: "موافقتك", who: "you" },
-  { key: "executing", label: "التنفيذ", who: "agent" },
-  { key: "build", label: "النشر", who: "auto" },
-  { key: "testing", label: "الاختبار", who: "agent" },
-  { key: "in_review", label: "مراجعتك", who: "you" },
-  { key: "documenting", label: "الشرح للفريق", who: "agent" },
+  { key: "request", label: "Request", who: "you" },
+  { key: "planning", label: "Plan", who: "agent" },
+  { key: "awaiting_approval", label: "Your approval", who: "you" },
+  { key: "executing", label: "Build", who: "agent" },
+  { key: "build", label: "Deploy", who: "auto" },
+  { key: "testing", label: "Test", who: "agent" },
+  { key: "in_review", label: "Your review", who: "you" },
+  { key: "documenting", label: "Team summary", who: "agent" },
 ];
 
 /** Index of the active step (0-based); executing covers code, build and tests (steps 3-5). */
@@ -107,14 +107,14 @@ export function activeStepIndex(stage: TaskStageKey | undefined): number {
 }
 
 export const STAGE_LABEL: Record<TaskStageKey, string> = {
-  planning: "بيكتب الخطة",
-  awaiting_approval: "مستني موافقتك",
-  executing: "تنفيذ واختبار",
-  in_review: "مستني مراجعتك",
-  documenting: "بيشرح للفريق",
-  documented: "تم + اتشرح",
-  done: "تم",
-  cancelled: "اتلغى",
+  planning: "Planning",
+  awaiting_approval: "Your approval",
+  executing: "Building",
+  in_review: "Your review",
+  documenting: "Team summary",
+  documented: "Documented",
+  done: "Done",
+  cancelled: "Cancelled",
 };
 
 export type StageTone = "you" | "work" | "review" | "done" | "muted";
@@ -154,12 +154,12 @@ export function useTaskStages(project: Repository | null | undefined) {
 export function sinceLabel(since: number | undefined, now = Date.now() / 1000): string {
   if (!since) return "";
   const s = Math.max(0, Math.floor(now - since));
-  if (s < 60) return "دلوقتي";
+  if (s < 60) return "now";
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} د`;
+  if (m < 60) return `${m} m`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h} س`;
-  return `${Math.floor(h / 24)} يوم`;
+  if (h < 24) return `${h} h`;
+  return `${Math.floor(h / 24)} d`;
 }
 
 export function invalidateTaskQueries(

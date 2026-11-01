@@ -11,18 +11,18 @@ import { STAGE_LABEL, type TaskStepDetail, type TaskStepTokens } from "./taskDes
 const WORKER: Record<TaskStepDetail["worker"], string> = {
   developer: "Developer",
   documentation: "Documentation",
-  owner: "إنت",
+  owner: "You",
 };
 
 function duration(seconds: number): string {
-  if (seconds < 60) return `${seconds} ث`;
+  if (seconds < 60) return `${seconds} s`;
   const m = Math.round(seconds / 60);
-  if (m < 60) return `${m} د`;
-  return `${Math.floor(m / 60)} س ${m % 60} د`;
+  if (m < 60) return `${m} m`;
+  return `${Math.floor(m / 60)} h ${m % 60} m`;
 }
 
 function clock(t: number): string {
-  return new Date(t * 1000).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
+  return new Date(t * 1000).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
 function k(n: number): string {
@@ -40,8 +40,8 @@ function TokensCell({ t }: { t?: TaskStepTokens }) {
   if (!t) return <span className="text-muted-foreground/60">—</span>;
   if (t.turns === 0)
     return (
-      <span className="text-muted-foreground/70" title="العدّ اتفعّل بعد المرحلة دي، فمفيش أرقام ليها">
-        قبل تفعيل العدّ
+      <span className="text-muted-foreground/70" title="Token counting started after this step">
+        not counted
       </span>
     );
   return (
@@ -75,12 +75,12 @@ export function TaskStepDetails({ steps }: { steps: TaskStepDetail[] }) {
         onClick={() => setOpen((o) => !o)}
         type="button"
       >
-        <span className="font-semibold text-foreground">تفاصيل المراحل والاستهلاك</span>
+        <span className="font-semibold text-foreground">Steps and usage</span>
         <span className="flex items-center gap-3 text-muted-foreground">
-          <span>شغل الموظفين: <b className="font-medium text-foreground">{duration(agentTime)}</b></span>
-          <span>انتظارك: <b className="font-medium text-foreground">{duration(ownerTime)}</b></span>
+          <span>Employee time <b className="font-medium text-foreground">{duration(agentTime)}</b></span>
+          <span>Waiting for you <b className="font-medium text-foreground">{duration(ownerTime)}</b></span>
           <span>
-            التوكنز: <b className="font-medium text-foreground" dir="ltr">{sum.turns ? k(sum.all) : "—"}</b>
+            Tokens <b className="font-medium text-foreground" dir="ltr">{sum.turns ? k(sum.all) : "—"}</b>
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
         </span>
@@ -89,11 +89,11 @@ export function TaskStepDetails({ steps }: { steps: TaskStepDetail[] }) {
         <table className="w-full border-t border-border/60 text-xs">
           <thead>
             <tr className="text-muted-foreground">
-              <th className="px-3 py-1.5 text-start font-medium">المرحلة</th>
-              <th className="px-3 py-1.5 text-start font-medium">مين</th>
-              <th className="px-3 py-1.5 text-start font-medium">بدأت</th>
-              <th className="px-3 py-1.5 text-start font-medium">المدة</th>
-              <th className="px-3 py-1.5 text-start font-medium">التوكنز</th>
+              <th className="px-3 py-1.5 text-start font-medium">Step</th>
+              <th className="px-3 py-1.5 text-start font-medium">Who</th>
+              <th className="px-3 py-1.5 text-start font-medium">Started</th>
+              <th className="px-3 py-1.5 text-start font-medium">Duration</th>
+              <th className="px-3 py-1.5 text-start font-medium">Tokens</th>
             </tr>
           </thead>
           <tbody>
@@ -101,7 +101,7 @@ export function TaskStepDetails({ steps }: { steps: TaskStepDetail[] }) {
               <tr className="border-t border-border/40" key={`${s.stage}-${s.start}-${i}`}>
                 <td className="px-3 py-1.5 font-medium text-foreground">
                   {STAGE_LABEL[s.stage] ?? s.stage}
-                  {s.end === null ? <span className="ms-1.5 text-amber-600 dark:text-amber-400">• شغالة</span> : null}
+                  {s.end === null ? <span className="ms-1.5 text-amber-600 dark:text-amber-400">• running</span> : null}
                 </td>
                 <td className="px-3 py-1.5 text-muted-foreground">{WORKER[s.worker]}</td>
                 <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{clock(s.start)}</td>

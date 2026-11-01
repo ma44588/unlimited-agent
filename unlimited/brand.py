@@ -245,24 +245,41 @@ PATCHES = [
      '      <TaskCycleCard issue={issue} project={project} />\n'
      '      {issue.content ? (\n',
      "<TaskCycleCard issue"),
-    # Project usage (time, tokens per task and employee) and the employees' files, above the task list.
+    # Task details: a "Files" row with a View button for the files the employees made for the task.
     (PROJECTS_UI / "ProjectIssuesPanel.tsx",
      'import { TaskStageCell } from "@/features/unlimited/tasks/TaskStageCell";\n',
      'import { TaskStageCell } from "@/features/unlimited/tasks/TaskStageCell";\n'
-     'import { ProjectUsageCard } from "@/features/unlimited/tasks/ProjectUsageCard";\n',
-     "ProjectUsageCard } from"),
+     'import { TaskFilesRow } from "@/features/unlimited/tasks/AgentFiles";\n',
+     "TaskFilesRow } from"),
     (PROJECTS_UI / "ProjectIssuesPanel.tsx",
-     "  return (\n"
-     "    <div>\n"
-     "      {groups.map(({ items, status }) => {\n",
-     "  return (\n"
-     "    <div>\n"
-     "      <ProjectUsageCard\n"
-     "        issues={resolvedItems.map(({ issue }) => issue)}\n"
-     "        project={resolvedItems[0].project}\n"
-     "      />\n"
-     "      {groups.map(({ items, status }) => {\n",
-     "<ProjectUsageCard\n"),
+     "        ) : null}\n      </ProjectDetailMetaList>\n",
+     "        ) : null}\n        <TaskFilesRow issue={issue} />\n      </ProjectDetailMetaList>\n",
+     "<TaskFilesRow issue"),
+    # Usage: its own page under Projects in the sidebar (route /usage).
+    (DESKTOP / "src" / "app" / "routes.ts",
+     '  route("/projects", "projects.tsx"),\n',
+     '  route("/projects", "projects.tsx"),\n  route("/usage", "usage.tsx"),\n',
+     'route("/usage"'),
+    (DESKTOP / "src" / "app" / "AppShell.helpers.ts",
+     '  if (pathname === "/projects" || pathname.startsWith("/projects/")) {\n',
+     '  if (pathname === "/usage" || pathname === "/projects" || pathname.startsWith("/projects/")) {\n',
+     'pathname === "/usage"'),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     'import { OutboxSidebarEntry } from "@/features/unlimited/odoo/OutboxSidebarEntry";\n',
+     'import { OutboxSidebarEntry } from "@/features/unlimited/odoo/OutboxSidebarEntry";\n'
+     'import { UsageSidebarEntry } from "@/features/unlimited/usage/UsageSidebarEntry";\n',
+     "UsageSidebarEntry }"),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     '                <SidebarMenuLabel>Projects</SidebarMenuLabel>\n'
+     '              </SidebarMenuButton>\n'
+     '            </SidebarMenuItem>\n'
+     '          </FeatureGate>\n',
+     '                <SidebarMenuLabel>Projects</SidebarMenuLabel>\n'
+     '              </SidebarMenuButton>\n'
+     '            </SidebarMenuItem>\n'
+     '          </FeatureGate>\n'
+     '          <UsageSidebarEntry />\n',
+     "<UsageSidebarEntry />"),
 ]
 
 
@@ -380,6 +397,36 @@ def brand_patches(check: bool) -> int:
     return n
 
 
+def brand_usage_route(check: bool) -> None:
+    """Add /usage to the generated route tree (mirrors the /agents entries)."""
+    path = DESKTOP / "src" / "app" / "routeTree.gen.ts"
+    text = path.read_text()
+    if "usageRoute" in text:
+        return
+    pairs = [
+        ('import { Route as agentsRouteImport } from "./routes/agents";\n',
+         'import { Route as usageRouteImport } from "./routes/usage";\n'),
+        ('const agentsRoute = agentsRouteImport.update({\n  id: "/agents",\n  path: "/agents",\n'
+         '  getParentRoute: () => rootRouteImport,\n} as any);\n',
+         'const usageRoute = usageRouteImport.update({\n  id: "/usage",\n  path: "/usage",\n'
+         '  getParentRoute: () => rootRouteImport,\n} as any);\n'),
+        ('  "/agents": typeof agentsRoute;\n', '  "/usage": typeof usageRoute;\n'),
+        ('    | "/agents"\n', '    | "/usage"\n'),
+        ('  agentsRoute: typeof agentsRoute;\n', '  usageRoute: typeof usageRoute;\n'),
+        ('    "/agents": {\n      id: "/agents";\n      path: "/agents";\n      fullPath: "/agents";\n'
+         '      preLoaderRoute: typeof agentsRouteImport;\n      parentRoute: typeof rootRouteImport;\n    };\n',
+         '    "/usage": {\n      id: "/usage";\n      path: "/usage";\n      fullPath: "/usage";\n'
+         '      preLoaderRoute: typeof usageRouteImport;\n      parentRoute: typeof rootRouteImport;\n    };\n'),
+        ('  agentsRoute: agentsRoute,\n', '  usageRoute: usageRoute,\n'),
+    ]
+    for anchor, extra in pairs:
+        if anchor not in text:
+            raise SystemExit(f"brand.py: route tree anchor missing: {anchor.strip()[:40]}")
+        text = text.replace(anchor, anchor + extra)
+    if not check:
+        path.write_text(text)
+
+
 def main() -> None:
     check = "--check" in sys.argv
     brand_tauri_conf(check)
@@ -388,6 +435,7 @@ def main() -> None:
     brand_features(check)
     brand_arabic_voice(check)
     print(f"patches: {brand_patches(check)} applied")
+    brand_usage_route(check)
     print(f"overrides: {brand_overrides(check)} files")
     n = brand_ui_strings(check)
     print(f"{'would replace' if check else 'replaced'} {n} user-facing 'Buzz' occurrences; product = {NAME}")

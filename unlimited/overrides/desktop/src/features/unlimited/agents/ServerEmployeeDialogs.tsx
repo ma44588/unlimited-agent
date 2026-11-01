@@ -205,12 +205,12 @@ function ServerControls({ employee, details, onDone }: { employee: ServerEmploye
     setBusy(act + (file ?? ""));
     try {
       await odooApi.serverAgentAction(employee.slug, { do: act, file });
-      toast.success(act === "delete" ? `${employee.name} اتشال من السيرفر.` : "تم.");
+      toast.success(act === "delete" ? `${employee.name} was removed from the server.` : "Done.");
       await qc.invalidateQueries({ queryKey: ["unlimited", "server-agents"] });
       await qc.invalidateQueries({ queryKey: ["unlimited", "server-agent", employee.slug] });
       if (act === "delete") onDone();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "تعذر التنفيذ.");
+      toast.error(error instanceof Error ? error.message : "Could not do that.");
     } finally {
       setBusy(null);
     }
@@ -369,16 +369,16 @@ function ServerEmployeeDialog({
     try {
       if (editing) {
         await odooApi.updateServerAgent(employee.slug, payload);
-        toast.success(`اتحفظ. ${payload.name} بيعيد التشغيل على السيرفر بالإعدادات الجديدة.`);
+        toast.success(`Saved. ${payload.name} is restarting on the server with the new settings.`);
       } else {
         await odooApi.createServerAgent(payload);
-        toast.success(`${payload.name} اتعمل على السيرفر وبدأ يشتغل.`);
+        toast.success(`${payload.name} was created on the server and is starting.`);
       }
       await qc.invalidateQueries({ queryKey: ["unlimited", "server-agents"] });
       await qc.invalidateQueries({ queryKey: ["unlimited", "server-agent"] });
       onOpenChange(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "تعذر الحفظ.");
+      setError(e instanceof Error ? e.message : "Could not save.");
     } finally {
       setPending(false);
     }
@@ -414,7 +414,7 @@ function ServerEmployeeDialog({
       {loading ? (
         <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           {detailsQuery.isError ? (
-            "تعذر تحميل الإعدادات من السيرفر."
+            "Could not load the settings from the server."
           ) : (
             <>
               <Loader2 className="h-4 w-4 animate-spin" /> Loading from the server…

@@ -96,6 +96,24 @@ export type EmployeeUsage = {
   days: { date: string; tokens: number; turns: number }[];
 };
 
+export type UsageStep = {
+  stage: string;
+  start: number;
+  end: number | null;
+  seconds: number;
+  worker: "developer" | "documentation" | "owner";
+  employee: string;
+  slug: string;
+  tokens?: { input: number; output: number; cache_read: number; cache_write: number; turns: number };
+};
+export type UsageOverview = {
+  now: number;
+  days: number;
+  projects: { id: string; buzz_id: string; name: string }[];
+  tasks: { id: string; title: string; project: string; stage: string; created_at: number; last: number; steps: UsageStep[] }[];
+  employees: (EmployeeUsage & { avatar?: string })[];
+};
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly sessionExpired = false) {
     super(message);
@@ -149,6 +167,7 @@ export const odooApi = {
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
   outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
+  usageOverview: (days = 30) => request<UsageOverview>("GET", `/admin/usage/overview?days=${days}`),
   agentFiles: () => request<AgentFile[]>("GET", "/admin/agent-files"),
   agentFile: (name: string) => request<AgentFileContent>("GET", `/admin/agent-files/${encodeURIComponent(name)}`),
   employeeUsage: (days = 30) => request<{ days: number; employees: EmployeeUsage[] }>("GET", `/admin/usage/employees?days=${days}`),
@@ -182,10 +201,10 @@ const demoState: { projects: Record<string, OdooProject>; approvals: Approval[] 
   ],
 };
 const DEMO_EMPLOYEES: ServerEmployee[] = [
-  { slug: "developer", name: "Developer", role: "مطوّر Odoo: تحليل، تنفيذ على stag، متابعة الـ build والاختبار",
+  { slug: "developer", name: "Developer", role: "Odoo developer: analysis, building on stag, build and test follow-up",
     about: "Odoo developer on the Unlimited server", avatar: "", pubkey: "e".repeat(64), builtin: true, projects: ["*"],
     model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
-  { slug: "documentation", name: "Documentation", role: "توثيق: شرح التغييرات للفريق ودليل المستخدم",
+  { slug: "documentation", name: "Documentation", role: "Documentation: team summaries and user guides",
     about: "", avatar: "", pubkey: "d".repeat(64), builtin: true, projects: ["*"],
     model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
 ];
@@ -271,9 +290,38 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
     ] } as T;
   }
   if (path === "/admin/outbox") return demoOutbox as T;
+  if (path.startsWith("/admin/usage/overview")) {
+    const now = Math.floor(Date.now() / 1000);
+    const t = (i: number, o: number) => ({ input: i, output: o, cache_read: i * 140, cache_write: i * 16, turns: 10 });
+    const mk = (id: string, title: string, stage: string, ago: number, toks: number) => ({
+      id, title, project: "diraty", stage, created_at: now - ago - 3600, last: now - ago,
+      steps: [
+        { stage: "planning", start: now - ago - 1500, end: now - ago - 1320, seconds: 180, worker: "developer", employee: "Developer", slug: "developer", tokens: t(toks * 0.15, 6400) },
+        { stage: "awaiting_approval", start: now - ago - 1320, end: now - ago - 1200, seconds: 120, worker: "owner", employee: "", slug: "" },
+        { stage: "executing", start: now - ago - 1200, end: now - ago - 660, seconds: 540, worker: "developer", employee: "Developer", slug: "developer", tokens: t(toks * 0.8, 21800) },
+        { stage: "in_review", start: now - ago - 660, end: now - ago - 240, seconds: 420, worker: "owner", employee: "", slug: "" },
+        { stage: "documenting", start: now - ago - 240, end: now - ago - 223, seconds: 17, worker: "documentation", employee: "Documentation", slug: "documentation", tokens: t(toks * 0.05, 1200) },
+        { stage: "documented", start: now - ago - 223, end: null, seconds: 0, worker: "owner", employee: "", slug: "" },
+      ],
+    });
+    const day = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    return {
+      now, days: 30,
+      projects: [{ id: "diraty", buzz_id: "x:dirty-odoo-sh", name: "Dirty-odoo.sh" }, { id: "alfares", buzz_id: "y:alfares", name: "Alfares" }],
+      tasks: [mk("42f10c91aa", "Dark mode for Point of Sale (POS)", "documented", 7200, 8000),
+              mk("51ab22cc01", "Carton barcode on delivery slip", "executing", 1800, 6000),
+              { ...mk("77de90aa02", "Fix VAT rounding on POS refunds", "awaiting_approval", 600, 1500), project: "alfares" }],
+      employees: [
+        { slug: "developer", name: "Developer", pubkey: "e".repeat(64), total: { input: 3200, output: 28200, cache_read: 1492000, cache_write: 165000, turns: 64 },
+          days: [{ date: day(6), tokens: 300000, turns: 9 }, { date: day(4), tokens: 420000, turns: 18 }, { date: day(2), tokens: 610000, turns: 22 }, { date: day(0), tokens: 658000, turns: 24 }] },
+        { slug: "documentation", name: "Documentation", pubkey: "d".repeat(64), total: { input: 400, output: 5100, cache_read: 212000, cache_write: 26000, turns: 9 },
+          days: [{ date: day(2), tokens: 90000, turns: 3 }, { date: day(0), tokens: 153500, turns: 6 }] },
+      ],
+    } as T;
+  }
   if (path === "/admin/agent-files") return DEMO_FILES as T;
   if ((m = path.match(/^\/admin\/agent-files\/(.+)$/))) {
-    const md = "# دليل الـ Dark mode في نقطة البيع\n\n1. افتح **Point of Sale**.\n2. دوس على زرار 🌙 في الشريط العلوي.\n\n| الشاشة | الحالة |\n|---|---|\n| المنتجات | Dark |";
+    const md = "# POS Dark Mode — user guide\n\n1. Open **Point of Sale**.\n2. Press the 🌙 button in the top bar.\n\n| Screen | Mode |\n|---|---|\n| Products | Dark |";
     return { name: decodeURIComponent(m[1]), size: md.length, mime: "text/markdown", data: btoa(unescape(encodeURIComponent(md))) } as T;
   }
   if (path.startsWith("/admin/usage/employees")) {
