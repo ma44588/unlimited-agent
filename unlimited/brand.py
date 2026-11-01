@@ -360,6 +360,39 @@ PATCHES = [
      '  }, [page]);\n\n'
      '  const chromeBackAction =\n',
      "never connect an AI provider here"),
+    # Menu-bar (tray) icon: infinity mark instead of the Buzz bee.
+    (DESKTOP / "src-tauri" / "src" / "tray_menu.rs",
+     '    fn bee_contains(x: f32, y: f32) -> bool {\n'
+     '        let silhouette = circle_contains(x, y, 91.7, 154.5, 91.7)\n'
+     '            || circle_contains(x, y, 374.3, 154.5, 91.7)\n'
+     '            || rounded_rect_contains(x, y, 128.0, 0.0, 210.0, 309.0, 34.0);\n'
+     '        let cutout = circle_contains(x, y, 193.3, 84.4, 27.0)\n'
+     '            || circle_contains(x, y, 276.0, 84.4, 27.0)\n'
+     '            || rounded_rect_contains(x, y, 166.3, 157.2, 136.9, 38.3, 5.0)\n'
+     '            || rounded_rect_contains(x, y, 166.9, 235.1, 136.2, 37.6, 5.0);\n'
+     '\n'
+     '        silhouette && !cutout\n'
+     '    }\n',
+     '    fn bee_contains(x: f32, y: f32) -> bool {\n'
+     '        // Unlimited Agent: the infinity mark (a lemniscate stroke) instead of the Buzz bee.\n'
+     '        static POINTS: std::sync::OnceLock<Vec<(f32, f32)>> = std::sync::OnceLock::new();\n'
+     '        const A: f32 = 205.0;\n'
+     '        const HALF_STROKE: f32 = 21.0;\n'
+     '        let points = POINTS.get_or_init(|| {\n'
+     '            (0..720)\n'
+     '                .map(|i| {\n'
+     '                    let t = i as f32 * std::f32::consts::TAU / 720.0;\n'
+     '                    let d = 1.0 + t.sin() * t.sin();\n'
+     '                    (233.0 + A * t.cos() / d, 154.5 + A * t.sin() * t.cos() / d)\n'
+     '                })\n'
+     '                .collect()\n'
+     '        });\n'
+     '        let _ = (circle_contains as fn(f32, f32, f32, f32, f32) -> bool, rounded_rect_contains as fn(f32, f32, f32, f32, f32, f32, f32) -> bool);\n'
+     '        points\n'
+     '            .iter()\n'
+     '            .any(|&(px, py)| (x - px) * (x - px) + (y - py) * (y - py) <= HALF_STROKE * HALF_STROKE)\n'
+     '    }\n',
+     "the infinity mark (a lemniscate stroke)"),
     # Workspaces (platform owner): its own page under Usage (route /workspaces).
     (DESKTOP / "src" / "app" / "routes.ts",
      '  route("/usage", "usage.tsx"),\n',
