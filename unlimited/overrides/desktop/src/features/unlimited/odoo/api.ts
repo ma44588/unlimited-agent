@@ -86,6 +86,16 @@ export type ServerEmployeeInput = {
   mcp: ServerMcpServer[];
 };
 
+export type AgentFile = { name: string; size: number; updated: number; mime: string };
+export type AgentFileContent = { name: string; size: number; mime: string; data: string };
+export type EmployeeUsage = {
+  slug: string;
+  name: string;
+  pubkey: string;
+  total: { input: number; output: number; cache_read: number; cache_write: number; turns: number };
+  days: { date: string; tokens: number; turns: number }[];
+};
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly sessionExpired = false) {
     super(message);
@@ -139,6 +149,9 @@ export const odooApi = {
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
   outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
+  agentFiles: () => request<AgentFile[]>("GET", "/admin/agent-files"),
+  agentFile: (name: string) => request<AgentFileContent>("GET", `/admin/agent-files/${encodeURIComponent(name)}`),
+  employeeUsage: (days = 30) => request<{ days: number; employees: EmployeeUsage[] }>("GET", `/admin/usage/employees?days=${days}`),
   serverAgents: () => request<ServerEmployee[]>("GET", "/admin/server-agents"),
   serverAgent: (slug: string) => request<ServerEmployeeDetails>("GET", `/admin/server-agents/${encodeURIComponent(slug)}`),
   createServerAgent: (input: ServerEmployeeInput) => request<{ slug: string }>("POST", "/admin/server-agents", input),
@@ -175,6 +188,11 @@ const DEMO_EMPLOYEES: ServerEmployee[] = [
   { slug: "documentation", name: "Documentation", role: "توثيق: شرح التغييرات للفريق ودليل المستخدم",
     about: "", avatar: "", pubkey: "d".repeat(64), builtin: true, projects: ["*"],
     model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
+];
+
+const DEMO_FILES: AgentFile[] = [
+  { name: "POS_DARK_MODE_GUIDE.md", size: 4547, updated: Math.floor(Date.now() / 1000) - 5400, mime: "text/markdown" },
+  { name: "DIRATY_CUSTOM_MODULES.pdf", size: 253303, updated: Math.floor(Date.now() / 1000) - 86400, mime: "application/pdf" },
 ];
 
 let demoOutbox: OutboxItem[] = [
@@ -253,6 +271,20 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
     ] } as T;
   }
   if (path === "/admin/outbox") return demoOutbox as T;
+  if (path === "/admin/agent-files") return DEMO_FILES as T;
+  if ((m = path.match(/^\/admin\/agent-files\/(.+)$/))) {
+    const md = "# دليل الـ Dark mode في نقطة البيع\n\n1. افتح **Point of Sale**.\n2. دوس على زرار 🌙 في الشريط العلوي.\n\n| الشاشة | الحالة |\n|---|---|\n| المنتجات | Dark |";
+    return { name: decodeURIComponent(m[1]), size: md.length, mime: "text/markdown", data: btoa(unescape(encodeURIComponent(md))) } as T;
+  }
+  if (path.startsWith("/admin/usage/employees")) {
+    const day = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    return { days: 30, employees: [
+      { slug: "developer", name: "Developer", pubkey: "e".repeat(64), total: { input: 3200, output: 28200, cache_read: 1492000, cache_write: 165000, turns: 64 },
+        days: [{ date: day(2), tokens: 610000, turns: 22 }, { date: day(1), tokens: 420000, turns: 18 }, { date: day(0), tokens: 658000, turns: 24 }] },
+      { slug: "documentation", name: "Documentation", pubkey: "d".repeat(64), total: { input: 400, output: 5100, cache_read: 212000, cache_write: 26000, turns: 9 },
+        days: [{ date: day(0), tokens: 243500, turns: 9 }] },
+    ] } as T;
+  }
   if (path === "/admin/server-agents" && method === "GET") return DEMO_EMPLOYEES as T;
   if ((m = path.match(/^\/admin\/server-agents\/([a-z0-9-]+)$/)) && method === "GET") {
     const row = DEMO_EMPLOYEES.find((e) => e.slug === m![1]) ?? DEMO_EMPLOYEES[0];

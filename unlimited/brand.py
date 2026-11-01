@@ -245,6 +245,24 @@ PATCHES = [
      '      <TaskCycleCard issue={issue} project={project} />\n'
      '      {issue.content ? (\n',
      "<TaskCycleCard issue"),
+    # Project usage (time, tokens per task and employee) and the employees' files, above the task list.
+    (PROJECTS_UI / "ProjectIssuesPanel.tsx",
+     'import { TaskStageCell } from "@/features/unlimited/tasks/TaskStageCell";\n',
+     'import { TaskStageCell } from "@/features/unlimited/tasks/TaskStageCell";\n'
+     'import { ProjectUsageCard } from "@/features/unlimited/tasks/ProjectUsageCard";\n',
+     "ProjectUsageCard } from"),
+    (PROJECTS_UI / "ProjectIssuesPanel.tsx",
+     "  return (\n"
+     "    <div>\n"
+     "      {groups.map(({ items, status }) => {\n",
+     "  return (\n"
+     "    <div>\n"
+     "      <ProjectUsageCard\n"
+     "        issues={resolvedItems.map(({ issue }) => issue)}\n"
+     "        project={resolvedItems[0].project}\n"
+     "      />\n"
+     "      {groups.map(({ items, status }) => {\n",
+     "<ProjectUsageCard\n"),
 ]
 
 

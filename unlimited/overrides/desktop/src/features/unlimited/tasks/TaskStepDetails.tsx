@@ -38,7 +38,12 @@ function total(t: TaskStepTokens): number {
 
 function TokensCell({ t }: { t?: TaskStepTokens }) {
   if (!t) return <span className="text-muted-foreground/60">—</span>;
-  if (t.turns === 0) return <span className="text-muted-foreground/70">مش متسجل</span>;
+  if (t.turns === 0)
+    return (
+      <span className="text-muted-foreground/70" title="العدّ اتفعّل بعد المرحلة دي، فمفيش أرقام ليها">
+        قبل تفعيل العدّ
+      </span>
+    );
   return (
     <span
       className="tabular-nums"

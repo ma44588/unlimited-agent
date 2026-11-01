@@ -29,6 +29,7 @@ import {
   useSetTaskStatusMutation,
   useTaskStages,
 } from "./taskDesk";
+import { TaskFiles } from "./AgentFiles";
 import { TaskStepDetails } from "./TaskStepDetails";
 
 function Stepper({ stage }: { stage: TaskStage | undefined }) {
@@ -249,6 +250,8 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
           </div>
         )
       ) : null}
+
+      <TaskFiles texts={[issue.content ?? "", ...issue.comments.map((c) => c.content)]} />
 
       {stage?.steps?.length ? <TaskStepDetails steps={stage.steps} /> : null}
     </section>
