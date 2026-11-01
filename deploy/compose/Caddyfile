@@ -10,7 +10,7 @@
     respond 404
   }
 
-  # Unlimited: browsers get our private landing page; invites keep the Buzz web flow;
+  # Unlimited: browsers get our private landing page; invites get our own page;
   # desktop/mobile websocket, NIP-11 and the relay API go to the relay unchanged.
   @browser {
     not header Upgrade *websocket*
@@ -19,10 +19,21 @@
   @landing {
     path / /brand/* /dl/*
   }
+  @invite {
+    path /invite/*
+  }
   @webapp {
-    path /invite/* /assets/*
+    path /assets/*
   }
   handle @browser {
+    # Unlimited: our own invite page (opens the app with buzz://join), not the Buzz web app.
+    handle @invite {
+      root * /srv/landing
+      header X-Robots-Tag "noindex, nofollow"
+      header Cache-Control "no-store"
+      rewrite * /invite/index.html
+      file_server
+    }
     handle @landing {
       root * /srv/landing
       header X-Robots-Tag "noindex, nofollow"
