@@ -192,6 +192,17 @@ PATCHES = [
      "    );\n"
      "}\n",
      "Unlimited: quote paths with spaces"),
+    # Agents page: only the company's own agents — hide Buzz's built-in sample agents and team.
+    (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
+     "              // Persona props\n"
+     "              personas={personas.libraryPersonas}\n",
+     "              // Persona props\n"
+     "              personas={personas.libraryPersonas.filter((p) => !p.isBuiltIn)}\n",
+     "libraryPersonas.filter((p) => !p.isBuiltIn)"),
+    (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
+     "              teams={teamActions.teams}\n",
+     "              teams={teamActions.teams.filter((t) => !t.isBuiltin)}\n",
+     "teamActions.teams.filter("),
     # Task cycle (Task Desk): stage pill in each task row, cycle card + decisions inside a task.
     (PROJECTS_UI / "ProjectIssuesPanel.tsx",
      'import { ProjectPanelState } from "./ProjectPanelState";\n',
