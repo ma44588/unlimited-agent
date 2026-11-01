@@ -158,13 +158,12 @@ PATCHES = [
      '      .then((nextAgents) => {\n'
      '        if (!cancelled) setAgents(nextAgents);\n'
      '      })\n',
-     '    Promise.all([invoke<ManagedAgentSummary[]>("list_managed_agents"), loadServerAgents()])\n'
-     '      .then(([nextAgents, serverAgents]) => {\n'
-     '        const local = new Set(nextAgents.map((a) => a.pubkey.toLowerCase()));\n'
-     '        const remote = serverAgents.filter((a) => !local.has(a.pubkey.toLowerCase()));\n'
-     '        if (!cancelled) setAgents([...remote, ...nextAgents]);\n'
+     '    // Unlimited: only the server employees are offered (no agents running on this computer).\n'
+     '    loadServerAgents()\n'
+     '      .then((serverAgents) => {\n'
+     '        if (!cancelled) setAgents(serverAgents);\n'
      '      })\n',
-     "loadServerAgents()])"),
+     "only the server employees are offered"),
     # git runs credential helpers through the shell, so the bundled helper path
     # "/Applications/Unlimited Agent.app/..." splits at the space and project git auth fails.
     # Quote the path whenever it holds shell-special characters (paths without them are unchanged).
@@ -193,6 +192,31 @@ PATCHES = [
      "    );\n"
      "}\n",
      "Unlimited: quote paths with spaces"),
+    # Task cycle (Task Desk): stage pill in each task row, cycle card + decisions inside a task.
+    (PROJECTS_UI / "ProjectIssuesPanel.tsx",
+     'import { ProjectPanelState } from "./ProjectPanelState";\n',
+     'import { ProjectPanelState } from "./ProjectPanelState";\n'
+     'import { TaskCycleCard } from "@/features/unlimited/tasks/TaskCycleCard";\n'
+     'import { TaskStageCell } from "@/features/unlimited/tasks/TaskStageCell";\n',
+     "TaskStageCell } from"),
+    (PROJECTS_UI / "ProjectIssuesPanel.tsx",
+     '      trailing={\n'
+     '        <>\n'
+     '          <span\n'
+     '            className="hidden w-24 shrink-0 truncate text-right text-xs text-muted-foreground/60 md:block"\n',
+     '      trailing={\n'
+     '        <>\n'
+     '          <TaskStageCell issueId={issue.id} project={project} />\n'
+     '          <span\n'
+     '            className="hidden w-24 shrink-0 truncate text-right text-xs text-muted-foreground/60 md:block"\n',
+     "<TaskStageCell issueId"),
+    (PROJECTS_UI / "ProjectIssuesPanel.tsx",
+     '      </ProjectDetailMetaList>\n'
+     '      {issue.content ? (\n',
+     '      </ProjectDetailMetaList>\n'
+     '      <TaskCycleCard issue={issue} project={project} />\n'
+     '      {issue.content ? (\n',
+     "<TaskCycleCard issue"),
 ]
 
 

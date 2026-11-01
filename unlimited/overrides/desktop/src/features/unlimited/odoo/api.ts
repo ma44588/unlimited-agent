@@ -96,6 +96,11 @@ export const odooApi = {
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
   outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
   serverAgents: () => request<{ name: string; pubkey: string }[]>("GET", "/admin/server-agents"),
+  taskStages: (buzzId: string) =>
+    request<import("@/features/unlimited/tasks/taskDesk").TaskStages>(
+      "GET",
+      `/admin/tasks/by-buzz/${encodeURIComponent(buzzId)}`,
+    ),
   decideEmail: (aid: string, decision: "approve" | "reject", edits?: { subject?: string; body?: string }) =>
     request<{ sent?: boolean }>("POST", `/admin/outbox/${aid}`, { decision, ...(edits ? { edits } : {}) }),
   decide: (aid: string, decision: "approve" | "reject") =>
@@ -130,6 +135,11 @@ const DEMO_PROJECTS: OdooShProject[] = [
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const minsAgo = (m: number) => new Date(Date.now() - m * 60000).toISOString();
 
+/** Preview only: stages are spread over the demo tasks by id (see stageFor in taskDesk.ts). */
+function demoTaskStages() {
+  return { enabled: true, demo: true, developer: "", documentation: "", stages: {} };
+}
+
 async function demo<T>(method: string, path: string, body?: unknown): Promise<T> {
   await wait(350);
   const pick = (p: string) => Object.values(demoState.projects).find((x) => x.id === p);
@@ -146,6 +156,7 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
     ] as T;
   if ((m = path.match(/^\/admin\/projects\/by-buzz\/(.+)$/)))
     return (demoState.projects[decodeURIComponent(m[1])] ?? null) as T;
+  if (path.startsWith("/admin/tasks/by-buzz/")) return demoTaskStages() as T;
   if (path === "/admin/projects" && method === "POST") {
     const d = body as { buzz_project: string; name: string; odoosh_project: string; branch: string; agents: string[] };
     const src = DEMO_PROJECTS.find((p) => p.name === d.odoosh_project);
