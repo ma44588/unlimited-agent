@@ -74,7 +74,11 @@ jobs:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
-          printf '%s' "$ASC_KEY_P8" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          printf '%s' "$ASC_KEY_P8" | tr -d '\r' > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          K=~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          # Shape check only (never prints the key): PEM header, line count, parses as a private key.
+          echo "first line: $(head -1 "$K")"; echo "lines: $(wc -l < "$K")"
+          openssl pkey -in "$K" -noout && echo "key parses OK" || { echo "::error::ASC_KEY_P8 is not a valid .p8 private key"; exit 1; }
       - name: Build archive (automatic signing through the API key)
         run: |
           cd mobile
