@@ -105,6 +105,108 @@ def app_icons() -> None:
                            check=True, capture_output=True)
 
 
+HERO_OLD = """                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 320),
+                            child: AspectRatio(
+                              aspectRatio: 777 / 326,
+                              child: Semantics(
+                                // Hidden developer entry intentionally has no
+                                // keyboard shortcut. Keep its assistive action
+                                // on the existing labelled wordmark node.
+                                customSemanticsActions: canRevealOptions
+                                    ? {
+                                        const CustomSemanticsAction(
+                                          label: 'More connection options',
+                                        ): revealOptions,
+                                      }
+                                    : null,
+                                child: OnboardingWordmark(
+                                  key: const Key('pairing-buzz-wordmark'),
+                                  color: context._onboardingIsDark
+                                      ? context._onboardingInk
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: Grid.xxs),
+                          Text(
+                            'Your people, your agents, your projects —\\nall in one place.',
+                            textAlign: TextAlign.center,
+                            style: context.textTheme.bodyLarge?.copyWith(
+                              color: context._onboardingInk,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),"""
+HERO_NEW = """                    child: Semantics(
+                      // Hidden developer entry intentionally has no keyboard
+                      // shortcut. Keep its assistive action on the hero.
+                      customSemanticsActions: canRevealOptions
+                          ? {
+                              const CustomSemanticsAction(
+                                label: 'More connection options',
+                              ): revealOptions,
+                            }
+                          : null,
+                      child: const Padding(
+                        padding: EdgeInsets.only(top: Grid.xxs),
+                        child: UnlimitedHero(key: Key('pairing-buzz-wordmark')),
+                      ),
+                    ),"""
+ACTIONS_OLD = """    List<Widget> connectionActions() => [
+      const SizedBox(height: Grid.xxs),
+      FilledButton(
+        style: context._onboardingGlassButtonStyle,
+        onPressed: onCommunityLink,
+        child: const Text('Enter a community link'),
+      ),
+      const SizedBox(height: Grid.xxs),
+      GestureDetector(
+        key: const Key('developer-pairing-trigger'),
+        excludeFromSemantics: true,
+        onDoubleTap: isBusy ? null : onAlreadyUseBuzz,
+        child: FilledButton(
+          style: context._onboardingGlassButtonStyle,
+          onPressed: isBusy ? null : onScan,
+          child: const Text('Scan a QR code'),
+        ),
+      ),
+    ];"""
+ACTIONS_NEW = """    List<Widget> connectionActions() => [
+      const SizedBox(height: Grid.xxs),
+      GestureDetector(
+        key: const Key('developer-pairing-trigger'),
+        excludeFromSemantics: true,
+        onDoubleTap: isBusy ? null : onAlreadyUseBuzz,
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            style: context._onboardingButtonStyle,
+            onPressed: isBusy ? null : onScan,
+            child: const Text('Scan the QR on your computer'),
+          ),
+        ),
+      ),
+      const SizedBox(height: Grid.xs - 6),
+      SizedBox(
+        width: double.infinity,
+        child: TextButton(
+          style: context._onboardingSecondaryButtonStyle,
+          onPressed: onCommunityLink,
+          child: const Text('I have an invite link'),
+        ),
+      ),
+      const SizedBox(height: Grid.twelve),
+      const _UnlimitedTrustRow(),
+    ];"""
+
+
 PATCHES = [
     # Top-section gradient: Unlimited purple wash (desktop --buzz-gradient-* in unlimited/brand/theme.css).
     ("lib/shared/theme/buzz_theme.dart", "const _lightTop = Color(0xFFE6E6B6);", "const _lightTop = Color(0xFFEEE5F6);"),
@@ -121,18 +223,30 @@ PATCHES = [
      "const neutralAccentIndex = 1;\n\n/// Unlimited Agent brand purple (first entry).\nconst unlimitedAccentIndex = 0;"),
     ("lib/shared/theme/accent_colors.dart", "const defaultAccentIndex = neutralAccentIndex;",
      "const defaultAccentIndex = unlimitedAccentIndex;"),
-    # Onboarding ink and buttons in brand purple.
-    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
-     "_onboardingIsDark ? const Color(0xFFE6EDF0) : const Color(0xFF111111);",
-     "_onboardingIsDark ? const Color(0xFFE9DDF3) : const Color(0xFF421C63);"),
-    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
-     "_onboardingIsDark ? const Color(0xFFAAB8C0) : const Color(0xB3111111);",
-     "_onboardingIsDark ? const Color(0xFFB9A8C8) : const Color(0xB3421C63);"),
-    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
-     "_onboardingIsDark ? const Color(0xFF172229) : const Color(0xFFD7E6F0);",
-     "_onboardingIsDark ? const Color(0xFF251038) : const Color(0xFFFFFFFF);"),
-    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
-     "? const Color(0xFF233039)", "? const Color(0xFF2A2333)"),
+    # Welcome hero: the landing page look (see overrides/mobile/lib/.../unlimited_hero.dart).
+    ("lib/features/pairing/pairing_page.dart", "import 'pairing_page/onboarding_wordmark.dart';",
+     "import 'pairing_page/unlimited_hero.dart';"),
+    ("lib/features/pairing/pairing_page/pairing_welcome_view.dart", HERO_OLD, HERO_NEW),
+    ("lib/features/pairing/pairing_page/pairing_welcome_view.dart", ACTIONS_OLD, ACTIONS_NEW),
+    ("lib/features/pairing/pairing_page/pairing_welcome_view.dart",
+     "                  FilledButton(\n                    style: context._onboardingGlassButtonStyle,\n                    onPressed: isBusy ? null : onScan,\n                    child: isBusy && !pairingCodeExpanded",
+     "                  FilledButton(\n                    style: context._onboardingButtonStyle,\n                    onPressed: isBusy ? null : onScan,\n                    child: isBusy && !pairingCodeExpanded"),
+    ("lib/features/pairing/pairing_page/pairing_welcome_view.dart",
+     "                        : const Text('Scan a QR code'),\n                  ),\n                  const SizedBox(height: Grid.xxs),",
+     "                        : const Text('Scan the QR on your computer'),\n                  ),\n                  const SizedBox(height: Grid.xxs),"),
+    ("lib/features/pairing/pairing_page/pairing_welcome_view.dart",
+     "                          : 'Use pairing code',", "                          : 'Paste a pairing link',"),
+    # Deep night palette for the app's dark mode, and dark by default.
+    ("lib/shared/theme/theme_catalog.dart",
+     "    name: 'buzz-dark',\n    bg: Color(0xFF24292E),\n    fg: Color(0xFFE1E4E8),\n    comment: Color(0xFF6A737D),",
+     "    name: 'buzz-dark',\n    bg: Color(0xFF0C0814),\n    fg: Color(0xFFF4F0FA),\n    comment: Color(0xFFB4A9C7),"),
+    ("lib/shared/theme/theme_catalog.dart",
+     "    name: 'buzz',\n    bg: Color(0xFFFFFFFF),\n    fg: Color(0xFF24292E),\n    comment: Color(0xFF6A737D),",
+     "    name: 'buzz',\n    bg: Color(0xFFFFFFFF),\n    fg: Color(0xFF1D1A22),\n    comment: Color(0xFF6B6475),"),
+    ("lib/shared/theme/buzz_theme.dart", "const _darkTop = Color(0xFF26113A);", "const _darkTop = Color(0xFF2A1442);"),
+    ("lib/shared/theme/buzz_theme.dart", "const _darkBottom = Color(0xFF3A1430);", "const _darkBottom = Color(0xFF150B24);"),
+    ("lib/shared/theme/theme_provider.dart", "          ThemeMode.system;\n    }\n    return ThemeMode.system;",
+     "          ThemeMode.system;\n    }\n    return ThemeMode.dark;"),
 ]
 
 
@@ -150,7 +264,18 @@ def patches() -> int:
     return n
 
 
+def lib_overrides() -> int:
+    n = 0
+    for src in (OVERRIDES / "lib").rglob("*.dart"):
+        dst = MOBILE / "lib" / src.relative_to(OVERRIDES / "lib")
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+        n += 1
+    return n
+
+
 def main() -> None:
+    print(f"mobile: {lib_overrides()} lib overrides")
     print(f"mobile: {patches()} theme patches")
     xcconfig()
     info_plist()
