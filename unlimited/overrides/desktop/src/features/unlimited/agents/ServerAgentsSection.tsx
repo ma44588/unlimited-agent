@@ -124,8 +124,8 @@ export function ServerAgentsSection() {
                   </div>
                   {agent.telegram || agent.email || agent.voice ? (
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                    <Channel icon={Send} label={agent.telegram?.ok ? agent.telegram.bot ?? "Telegram" : "Telegram"} ok={!!agent.telegram?.ok} />
-                    <Channel icon={AtSign} label={agent.email?.address ?? "Email"} ok={!!agent.email?.ok} />
+                    <Channel icon={Send} label={agent.telegram?.bot ?? "Telegram"} ok={!!agent.telegram?.ok} />
+                    <Channel icon={AtSign} label="Email" ok={!!agent.email?.ok} />
                     {agent.voice ? <Channel icon={Mic} label={agent.voice.split(" ·")[0]} ok /> : null}
                   </div>
                   ) : null}
@@ -134,7 +134,7 @@ export function ServerAgentsSection() {
                       <MessageSquare /> Message
                     </Button>
                     <Button onClick={() => setEditing(agent)} size="sm" variant="ghost">
-                      <Settings2 /> {agent.title ? "Profile" : "Settings"}
+                      <Settings2 /> Profile
                     </Button>
                     <span className="ms-auto text-[11px] capitalize text-muted-foreground/70">{agent.model}</span>
                   </div>

@@ -5,17 +5,17 @@
  * Every save goes to the server (connector → agentctl); nothing is created or run on this computer.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AtSign, ChevronDown, Loader2, Play, Plus, RotateCcw, Send, Server, ShieldCheck, Square, Trash2, X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { AtSign, Brain, Cpu, FileText, Loader2, Mic, Play, Plus, RotateCcw, Send, Server, ShieldCheck, SlidersHorizontal, Square, Trash2, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { AgentCreationPreview } from "@/features/agents/ui/AgentCreationPreview";
 import { AgentDefinitionDialogFooter } from "@/features/agents/ui/AgentDefinitionDialogFooter";
-import { AgentDefinitionDialogShell } from "@/features/agents/ui/AgentDefinitionDialogShell";
+import { ChooserDialogContent } from "@/shared/ui/chooser-dialog-content";
+import { Dialog } from "@/shared/ui/dialog";
 import { AgentIdentityFields } from "@/features/agents/ui/AgentDescriptionField";
 import {
-  ADVANCED_FIELDS_MOTION_TRANSITION,
   PERSONA_FIELD_CONTROL_CLASS,
   PERSONA_FIELD_SHELL_CLASS,
   PERSONA_LABEL_OPTIONAL_CLASS,
@@ -49,6 +49,8 @@ const EFFORT_OPTIONS: PersonaDropdownOption[] = [
   { value: "12000", label: "High" },
   { value: "24000", label: "Max" },
 ];
+
+type Section = "profile" | "channels" | "voice" | "instructions" | "model" | "memory" | "advanced";
 
 type Draft = ServerEmployeeInput & {
   person: string;
@@ -115,50 +117,98 @@ function fromDetails(d: ServerEmployeeDetails): Draft {
   };
 }
 
-function ChannelsField({ details, draft, set, disabled }: {
+function ChannelsField({ employee, details, draft, set, disabled }: {
+  employee: ServerEmployee | null;
   details?: ServerEmployeeDetails;
   draft: Draft;
   set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
   disabled: boolean;
 }) {
+  const qc = useQueryClient();
+  const [token, setToken] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
   const tg = details?.telegram;
-  const mailOk = !!details?.email?.ok;
   const dot = (ok: boolean) => <span className={cn("h-1.5 w-1.5 rounded-full", ok ? "bg-emerald-500" : "bg-muted-foreground/50")} />;
+  async function call(input: { token: string } | { disconnect: true }) {
+    if (!employee) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await odooApi.serverAgentTelegram(employee.slug, input);
+      setToken("");
+      await qc.invalidateQueries({ queryKey: ["unlimited", "server-agent", employee.slug] });
+      await qc.invalidateQueries({ queryKey: ["unlimited", "server-agents"] });
+      if ("token" in input && r.pair_link) void openUrl(r.pair_link);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not connect.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <div className="space-y-1.5">
-      <Label>Channels</Label>
-      <div className={cn("divide-y divide-border/60 overflow-hidden", PERSONA_FIELD_SHELL_CLASS)}>
-        <div className="space-y-2 px-3 py-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Send className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-foreground">Telegram</span>
-            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">{dot(!!tg?.ok)} {tg?.ok ? tg.bot : "Not connected"}</span>
-          </div>
-          {tg?.ok ? (
-            <p className="text-xs text-muted-foreground">Posts in its team group and replies to you in private. Only you can give it orders.</p>
-          ) : (
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground">In Telegram open @BotFather, send /newbot with this employee's name, and paste the token:</p>
-              <div className="flex gap-2">
-                <Input autoComplete="off" className="h-8 text-xs" disabled={disabled} placeholder="123456:ABC…" type="password" />
-                <Button disabled={disabled} size="sm" type="button">Connect</Button>
-              </div>
+    <div className="space-y-5">
+      <section className={cn("space-y-3 px-4 py-4", PERSONA_FIELD_SHELL_CLASS)}>
+        <div className="flex items-center gap-2 text-sm">
+          <Send className="h-4 w-4 text-muted-foreground" />
+          <span className="font-semibold text-foreground">Telegram</span>
+          <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            {dot(!!tg?.paired)} {tg?.paired ? `${tg.bot} · connected` : tg ? `${tg.bot} · waiting for you` : "Not connected"}
+          </span>
+        </div>
+        {!employee ? (
+          <p className="text-xs text-muted-foreground">Create the employee first, then connect its Telegram bot here.</p>
+        ) : tg?.paired ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Write to {tg.bot} on Telegram and {draft.person || draft.name} answers you there. It can also message you first
+              (reports, alerts). Only your Telegram account can use it; everyone else is ignored.
+            </p>
+            <Button disabled={busy} onClick={() => void call({ disconnect: true })} size="sm" type="button" variant="ghost">
+              Disconnect Telegram
+            </Button>
+          </>
+        ) : tg ? (
+          <>
+            <p className="text-sm text-foreground">One last step: open the bot and press <b>Start</b>. That links it to your Telegram account.</p>
+            <div className="flex gap-2">
+              <Button onClick={() => tg.pair_link && void openUrl(tg.pair_link)} size="sm" type="button"><Send /> Open {tg.bot}</Button>
+              <Button disabled={busy} onClick={() => void call({ disconnect: true })} size="sm" type="button" variant="ghost">Cancel</Button>
             </div>
-          )}
+          </>
+        ) : (
+          <ol className="space-y-2 text-sm text-foreground">
+            <li>1. In Telegram open <b>@BotFather</b>, send <b>/newbot</b>, and give it this employee's name.</li>
+            <li>2. Paste the token it gives you and press Connect. Telegram opens the bot; press <b>Start</b>.</li>
+            <li className="flex gap-2 pt-1">
+              <Input autoComplete="off" className="h-9 text-xs" disabled={disabled || busy} onChange={(e) => setToken(e.target.value)}
+                placeholder="123456789:AA…" type="password" value={token} />
+              <Button disabled={disabled || busy || !token.trim()} onClick={() => void call({ token: token.trim() })} size="sm" type="button">
+                {busy ? <Loader2 className="animate-spin" /> : null} Connect
+              </Button>
+            </li>
+          </ol>
+        )}
+        {err ? <p className="text-xs text-destructive">{err}</p> : null}
+      </section>
+
+      <section className={cn("space-y-3 px-4 py-4", PERSONA_FIELD_SHELL_CLASS)}>
+        <div className="flex items-center gap-2 text-sm">
+          <AtSign className="h-4 w-4 text-muted-foreground" />
+          <span className="font-semibold text-foreground">Email</span>
+          <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            {dot(!!details?.email?.ok)} {details?.email?.ok ? "Receiving" : draft.email ? "Waiting for the team mailbox" : "Not set"}
+          </span>
         </div>
-        <div className="space-y-2 px-3 py-3">
-          <div className="flex items-center gap-2 text-sm">
-            <AtSign className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium text-foreground">Email</span>
-            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">{dot(mailOk)} {mailOk ? "Receiving" : "Not set up"}</span>
-          </div>
-          <Input className="h-8 text-xs" disabled={disabled} onChange={(e) => set("email", e.target.value)} placeholder="name@unlimitedsolutions.technology" value={draft.email} />
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            An alias of the team mailbox on Hostinger. Mail to it reaches this employee; replies go out only after you approve them.
-          </p>
-        </div>
-      </div>
+        <Input className="h-9 text-sm" dir="ltr" disabled={disabled} onChange={(e) => set("email", e.target.value)}
+          placeholder="dev@unlimitedsolutions.technology" value={draft.email} />
+        <ul className="space-y-1.5 text-xs text-muted-foreground">
+          <li className="flex items-start gap-1.5"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            In Hostinger make this address an alias of the team mailbox (team@). Mail to it reaches this employee.</li>
+          <li className="flex items-start gap-1.5"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Emails to you go out directly; emails to anyone else wait for your approval in Outbox.</li>
+        </ul>
+      </section>
     </div>
   );
 }
@@ -402,7 +452,7 @@ function ServerEmployeeDialog({
   const options = details ?? optionsQuery.data;
 
   const [draft, setDraft] = React.useState<Draft>(EMPTY);
-  const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [section, setSection] = React.useState<Section>("profile");
   const [pending, setPending] = React.useState(false);
   const [avatarPending, setAvatarPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -416,12 +466,12 @@ function ServerEmployeeDialog({
     if (!editing && loadedFor.current !== "new") {
       setDraft(EMPTY);
       setError(null);
-      setShowAdvanced(false);
+      setSection("profile");
       loadedFor.current = "new";
     } else if (editing && details && loadedFor.current !== employee.slug) {
       setDraft(fromDetails(details));
       setError(null);
-      setShowAdvanced(false);
+      setSection("profile");
       loadedFor.current = employee.slug;
     }
   }, [open, editing, details, employee]);
@@ -437,9 +487,10 @@ function ServerEmployeeDialog({
     if (!canSubmit) return;
     setPending(true);
     setError(null);
-    const { person: _p, title: _t, department: _d, email: _e, voice: _v, ...base } = draft;
+    const { voice, ...base } = draft;
     const payload: ServerEmployeeInput = {
       ...base,
+      ...(isDemo() ? { voice } : {}),
       name: draft.name.trim(),
       role: draft.about.trim(),
       about: draft.about.trim(),
@@ -474,216 +525,219 @@ function ServerEmployeeDialog({
     />
   );
 
+  const demo = isDemo();
+  const sections: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+    { id: "profile", label: "Profile", icon: UserRound },
+    { id: "channels", label: "Telegram & email", icon: Send },
+    ...(demo ? [{ id: "voice" as Section, label: "Voice", icon: Mic }] : []),
+    { id: "instructions", label: "Instructions", icon: FileText },
+    { id: "model", label: "Model & server", icon: Cpu },
+    ...(editing ? [{ id: "memory" as Section, label: "Memory", icon: Brain }] : []),
+    { id: "advanced", label: "Advanced", icon: SlidersHorizontal },
+  ];
+  const head = details?.person || draft.person || draft.name || "New employee";
+
   return (
-    <AgentDefinitionDialogShell
-      description={
-        editing
-          ? "This employee runs on the Unlimited server. Changes are saved there and the employee restarts with them."
-          : "The new employee is created and runs on the Unlimited server, with its own key. Nothing runs on this computer."
-      }
-      embedded={false}
-      footer={footer}
+    <Dialog
       onOpenChange={(next) => {
         if (!next && (pending || avatarPending)) return;
         onOpenChange(next);
       }}
       open={open}
-      title={editing ? `${details?.person || employee.name} · ${details?.person ? "Profile" : "Settings"}` : "New server employee"}
     >
-      {loading ? (
-        <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-          {detailsQuery.isError ? (
-            "Could not load the settings from the server."
-          ) : (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading from the server…
-            </>
-          )}
-        </div>
-      ) : (
-        <form className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]" id="persona-dialog-form" onSubmit={submit}>
-          <AgentCreationPreview
-            avatarUrl={draft.avatar || null}
-            disabled={pending || avatarPending}
-            label={draft.name || "New employee"}
-            onClearAvatar={() => set("avatar", "")}
-            onSelectAvatar={(url) => set("avatar", url)}
-            onUploadPendingChange={setAvatarPending}
-          />
-
-          <div className="space-y-5">
-            <AgentIdentityFields
-              description={draft.about}
-              disabled={pending}
-              displayName={draft.name}
-              onDescriptionChange={(v) => set("about", v)}
-              onDisplayNameChange={(v) => set("name", v)}
-            />
-            {!nameOk && draft.name ? (
-              <p className="-mt-3 text-xs text-destructive">Use an English name: letters, digits, spaces or “-”.</p>
-            ) : null}
-
-            {isDemo() ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="server-employee-person" optional>Full name</Label>
-                <div className={PERSONA_FIELD_SHELL_CLASS}>
-                  <Input className={cn("h-10 px-3", PERSONA_FIELD_CONTROL_CLASS)} dir="auto" disabled={pending} id="server-employee-person"
-                    onChange={(e) => set("person", e.target.value)} placeholder="Omar Hassan" value={draft.person} />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="server-employee-title">Job title</Label>
-                <div className={PERSONA_FIELD_SHELL_CLASS}>
-                  <Input className={cn("h-10 px-3", PERSONA_FIELD_CONTROL_CLASS)} dir="auto" disabled={pending} id="server-employee-title"
-                    onChange={(e) => set("title", e.target.value)} placeholder="Senior Odoo Developer" value={draft.title} />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="server-employee-department">Department</Label>
-                <PersonaDropdownField disabled={pending} id="server-employee-department" onValueChange={(v) => set("department", v)}
-                  options={DEPARTMENT_OPTIONS} placeholder="Choose a department" value={draft.department} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="server-employee-voice">Voice in calls</Label>
-                <div className="flex gap-2">
-                  <div className="min-w-0 flex-1">
-                    <PersonaDropdownField disabled={pending} id="server-employee-voice" onValueChange={(v) => set("voice", v)}
-                      options={VOICE_OPTIONS} placeholder="Choose a voice" value={draft.voice} />
-                  </div>
-                  <Button className="h-10" disabled={!draft.voice} size="sm" type="button" variant="outline"><Play /> Play</Button>
-                </div>
-              </div>
-            </div>
-            ) : null}
-
-            <div className="space-y-1.5">
-              <Label htmlFor="server-employee-instructions">Agent instructions</Label>
-              <div className={PERSONA_FIELD_SHELL_CLASS}>
-                <Textarea
-                  className={cn("min-h-40 resize-y px-3 py-3 leading-5", PERSONA_FIELD_CONTROL_CLASS)}
-                  dir="auto"
-                  disabled={pending}
-                  id="server-employee-instructions"
-                  onChange={(e) => set("instructions", e.target.value)}
-                  placeholder="Describe what this employee should do. Company rules (Arabic first, memory, task workflow) are added automatically."
-                  value={draft.instructions}
-                />
-              </div>
-            </div>
-
-            {isDemo() ? <ChannelsField details={details} disabled={pending} draft={draft} set={set} /> : null}
-
-            <div className="space-y-1.5">
-              <Label>Runs on</Label>
-              <div className={cn("flex items-center gap-2 px-3 py-2.5 text-sm", PERSONA_FIELD_SHELL_CLASS)}>
-                <Server className="h-4 w-4 text-muted-foreground" />
-                <span className="text-foreground">Unlimited server</span>
-                <span className="text-muted-foreground">· Claude Code · always on</span>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="server-employee-model">Model</Label>
-                <PersonaDropdownField
-                  disabled={pending}
-                  id="server-employee-model"
-                  onValueChange={(v) => set("model", v as Draft["model"])}
-                  options={MODEL_OPTIONS}
-                  placeholder="Choose a model"
-                  value={draft.model}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="server-employee-effort">Effort</Label>
-                <PersonaDropdownField
-                  disabled={pending}
-                  id="server-employee-effort"
-                  onValueChange={(v) => set("thinking", Number(v))}
-                  options={EFFORT_OPTIONS}
-                  placeholder="Thinking effort"
-                  value={String(draft.thinking)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                aria-expanded={showAdvanced}
-                className="inline-flex h-9 items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-foreground/80 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setShowAdvanced((v) => !v)}
-                type="button"
-              >
-                <span>Advanced</span>
-                <ChevronDown
-                  className={cn(
-                    "h-4 w-4 text-muted-foreground transition-transform duration-150 ease-out",
-                    showAdvanced && "rotate-180",
-                  )}
-                />
-              </button>
-              <AnimatePresence initial={false}>
-                {showAdvanced ? (
-                  <motion.div
-                    animate={{ height: "auto", opacity: 1, scale: 1 }}
-                    className="origin-top space-y-5 overflow-hidden"
-                    exit={{ height: 0, opacity: 0, scale: 0.98 }}
-                    initial={{ height: 0, opacity: 0, scale: 0.98 }}
-                    key="server-employee-advanced"
-                    transition={ADVANCED_FIELDS_MOTION_TRANSITION}
-                  >
-                    <CreateAgentRespondToField
-                      allowlist={draft.allow}
-                      disabled={pending}
-                      mode={draft.respond_to}
-                      onAllowlistChange={(v) => set("allow", v)}
-                      onModeChange={(v) => set("respond_to", v)}
-                      runLocation="remote"
-                      variant="persona"
-                    />
-
-                    <div className="space-y-1.5">
-                      <Label>Projects</Label>
-                      <Checklist
-                        allLabel="All projects"
-                        empty="No projects on the server yet."
-                        items={options?.projects_available ?? []}
-                        onChange={(v) => set("projects", v.length ? v : ["*"])}
-                        selected={draft.projects}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label optional>Skills</Label>
-                      <Checklist
-                        empty="No skills in the server library yet."
-                        items={options?.skills_available ?? []}
-                        onChange={(v) => set("skills", v)}
-                        selected={draft.skills}
-                      />
-                    </div>
-
-                    <EnvVarsEditor
-                      disabled={pending}
-                      helperText="Saved on the server for this employee only."
-                      onChange={(v) => set("env", v)}
-                      value={draft.env}
-                    />
-
-                    <McpServersEditor disabled={pending} onChange={(v) => set("mcp", v)} value={draft.mcp} />
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
-
-            {editing ? <ServerControls details={details} employee={employee} onDone={() => onOpenChange(false)} /> : null}
-
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <ChooserDialogContent
+        className="h-[min(860px,calc(100vh-3rem))] w-[min(1180px,calc(100vw-2rem))] max-w-none border-0"
+        contentClassName="flex min-h-0 flex-1 pt-3"
+        data-testid="persona-dialog"
+        description={
+          editing
+            ? "Runs on the Unlimited server. Changes are saved there and the employee restarts with them."
+            : "Created and run on the Unlimited server, with its own key. Nothing runs on this computer."
+        }
+        footer={footer}
+        footerClassName="border-t-0 pt-0"
+        headerClassName="pb-2"
+        title={editing ? `${head} · Profile` : "New server employee"}
+      >
+        {loading ? (
+          <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
+            {detailsQuery.isError ? (
+              "Could not load the settings from the server."
+            ) : (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading from the server…
+              </>
+            )}
           </div>
-        </form>
-      )}
-    </AgentDefinitionDialogShell>
+        ) : (
+          <form className="grid min-h-0 w-full flex-1 gap-6 md:grid-cols-[230px_minmax(0,1fr)]" id="persona-dialog-form" onSubmit={submit}>
+            <aside className="flex min-h-0 flex-col gap-4">
+              <AgentCreationPreview
+                avatarUrl={draft.avatar || null}
+                disabled={pending || avatarPending}
+                label={draft.name || "New employee"}
+                onClearAvatar={() => set("avatar", "")}
+                onSelectAvatar={(url) => set("avatar", url)}
+                onUploadPendingChange={setAvatarPending}
+              />
+              <div className="min-w-0 px-1">
+                <p className="truncate text-sm font-semibold text-foreground">{head}</p>
+                <p className="truncate text-xs text-muted-foreground">{draft.title || draft.about || "Server employee"}</p>
+              </div>
+              <nav aria-label="Employee sections" className="flex flex-col gap-0.5">
+                {sections.map((sec) => {
+                  const Icon = sec.icon;
+                  return (
+                    <button
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-lg px-3 py-2 text-start text-sm transition-colors",
+                        section === sec.id ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                      )}
+                      data-testid={`employee-section-${sec.id}`}
+                      key={sec.id}
+                      onClick={() => setSection(sec.id)}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" /> {sec.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
+
+            <div className="min-h-0 space-y-5 overflow-y-auto pb-6 pe-1">
+              {section === "profile" ? (
+                <>
+                  <AgentIdentityFields
+                    description={draft.about}
+                    disabled={pending}
+                    displayName={draft.name}
+                    onDescriptionChange={(v) => set("about", v)}
+                    onDisplayNameChange={(v) => set("name", v)}
+                  />
+                  {!nameOk && draft.name ? (
+                    <p className="-mt-3 text-xs text-destructive">Use an English name: letters, digits, spaces or “-”.</p>
+                  ) : null}
+                  {true ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="server-employee-person" optional>Full name</Label>
+                        <div className={PERSONA_FIELD_SHELL_CLASS}>
+                          <Input className={cn("h-10 px-3", PERSONA_FIELD_CONTROL_CLASS)} dir="auto" disabled={pending} id="server-employee-person"
+                            onChange={(e) => set("person", e.target.value)} placeholder="Omar Hassan" value={draft.person} />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="server-employee-title">Job title</Label>
+                        <div className={PERSONA_FIELD_SHELL_CLASS}>
+                          <Input className={cn("h-10 px-3", PERSONA_FIELD_CONTROL_CLASS)} dir="auto" disabled={pending} id="server-employee-title"
+                            onChange={(e) => set("title", e.target.value)} placeholder="Senior Odoo Developer" value={draft.title} />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="server-employee-department">Department</Label>
+                        <PersonaDropdownField disabled={pending} id="server-employee-department" onValueChange={(v) => set("department", v)}
+                          options={DEPARTMENT_OPTIONS} placeholder="Choose a department" value={draft.department} />
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+
+              {section === "channels" ? <ChannelsField details={details} disabled={pending} draft={draft} employee={employee} set={set} /> : null}
+
+              {section === "voice" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="server-employee-voice">Voice in calls</Label>
+                  <div className="flex max-w-md gap-2">
+                    <div className="min-w-0 flex-1">
+                      <PersonaDropdownField disabled={pending} id="server-employee-voice" onValueChange={(v) => set("voice", v)}
+                        options={VOICE_OPTIONS} placeholder="Choose a voice" value={draft.voice} />
+                    </div>
+                    <Button className="h-10" disabled={!draft.voice} size="sm" type="button" variant="outline"><Play /> Play</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">The employee keeps this voice in every call. Call settings are in Settings, Voice.</p>
+                </div>
+              ) : null}
+
+              {section === "instructions" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="server-employee-instructions">Agent instructions</Label>
+                  <div className={PERSONA_FIELD_SHELL_CLASS}>
+                    <Textarea
+                      className={cn("min-h-[55vh] resize-y px-3 py-3 leading-6", PERSONA_FIELD_CONTROL_CLASS)}
+                      dir="auto"
+                      disabled={pending}
+                      id="server-employee-instructions"
+                      onChange={(e) => set("instructions", e.target.value)}
+                      placeholder="Describe what this employee should do. Company rules (Arabic first, memory, task workflow) are added automatically."
+                      value={draft.instructions}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {section === "model" ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Runs on</Label>
+                    <div className={cn("flex items-center gap-2 px-3 py-2.5 text-sm", PERSONA_FIELD_SHELL_CLASS)}>
+                      <Server className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-foreground">Unlimited server</span>
+                      <span className="text-muted-foreground">· Claude Code · always on</span>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="server-employee-model">Model</Label>
+                      <PersonaDropdownField disabled={pending} id="server-employee-model" onValueChange={(v) => set("model", v as Draft["model"])}
+                        options={MODEL_OPTIONS} placeholder="Choose a model" value={draft.model} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="server-employee-effort">Effort</Label>
+                      <PersonaDropdownField disabled={pending} id="server-employee-effort" onValueChange={(v) => set("thinking", Number(v))}
+                        options={EFFORT_OPTIONS} placeholder="Thinking effort" value={String(draft.thinking)} />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              {(section === "model" || section === "memory") && editing ? (
+                <ServerControls details={details} employee={employee} onDone={() => onOpenChange(false)} />
+              ) : null}
+
+              {section === "advanced" ? (
+                <>
+                  <CreateAgentRespondToField
+                    allowlist={draft.allow}
+                    disabled={pending}
+                    mode={draft.respond_to}
+                    onAllowlistChange={(v) => set("allow", v)}
+                    onModeChange={(v) => set("respond_to", v)}
+                    runLocation="remote"
+                    variant="persona"
+                  />
+                  <div className="space-y-1.5">
+                    <Label>Projects</Label>
+                    <Checklist allLabel="All projects" empty="No projects on the server yet." items={options?.projects_available ?? []}
+                      onChange={(v) => set("projects", v.length ? v : ["*"])} selected={draft.projects} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label optional>Skills</Label>
+                    <Checklist empty="No skills in the server library yet." items={options?.skills_available ?? []}
+                      onChange={(v) => set("skills", v)} selected={draft.skills} />
+                  </div>
+                  <EnvVarsEditor disabled={pending} helperText="Saved on the server for this employee only." onChange={(v) => set("env", v)} value={draft.env} />
+                  <McpServersEditor disabled={pending} onChange={(v) => set("mcp", v)} value={draft.mcp} />
+                </>
+              ) : null}
+
+              {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            </div>
+          </form>
+        )}
+      </ChooserDialogContent>
+    </Dialog>
   );
 }
 

@@ -66,7 +66,7 @@ export type ServerEmployee = {
   person?: string;
   title?: string;
   department?: string;
-  telegram?: { bot?: string; ok: boolean };
+  telegram?: { bot?: string; ok: boolean; paired?: boolean; pair_link?: string | null; channel?: string };
   email?: { address?: string; ok: boolean };
   voice?: string;
 };
@@ -80,6 +80,11 @@ export type ServerEmployeeDetails = ServerEmployee & {
   mcp: ServerMcpServer[];
 };
 export type ServerEmployeeInput = {
+  person?: string;
+  title?: string;
+  department?: string;
+  voice?: string;
+  email?: string;
   name: string;
   role: string;
   about: string;
@@ -197,6 +202,8 @@ export const odooApi = {
     request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}`, input),
   serverAgentAction: (slug: string, input: { do: "start" | "stop" | "restart" | "delete" | "memory_delete"; file?: string }) =>
     request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, input),
+  serverAgentTelegram: (slug: string, input: { token: string } | { disconnect: true }) =>
+    request<{ bot?: string; paired?: boolean; pair_link?: string | null }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/telegram`, input),
   serverAgentLogs: (slug: string, lines = 400) =>
     request<{ slug: string; log: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, { do: "logs", lines }),
   taskStages: (buzzId: string) =>
