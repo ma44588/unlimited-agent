@@ -307,7 +307,7 @@ function PersonPanel({ id, org, onClose, onChanged }: { id: string; org: Org; on
     try {
       await orgApi.updateMember(p.id, {
         ...(p.owner ? {} : { reports_to: f.reports_to }),
-        odoo_user: f.odoo_user.trim(),
+        ...(p.kind === "ai" ? {} : { odoo_user: f.odoo_user.trim() }),
         avatar: f.avatar.trim(),
         ...(p.kind === "ai" ? { capacity: f.capacity } : { approves: f.approves, title: f.title.trim() }),
       });
@@ -429,13 +429,23 @@ function PersonPanel({ id, org, onClose, onChanged }: { id: string; org: Org; on
             <input className={field} onChange={(e) => setF({ ...f, title: e.target.value })} value={f.title} />
           </label>
         ) : null}
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Odoo user (login)
-          <input className={field} onChange={(e) => setF({ ...f, odoo_user: e.target.value })} placeholder="name@unlimitedsolutions.technology" value={f.odoo_user} />
-          <span className="text-[11px]">
-            {p.kind === "ai" ? `Tasks assigned to this Odoo user go to ${firstName(p)} first; the lead shares out the rest.` : "Shows their Odoo tasks next to the team."}
-          </span>
-        </label>
+        {p.kind === "ai" ? (
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-border/60 px-3 py-2 text-xs">
+            <span className="min-w-0">
+              <span className="block font-semibold text-foreground">Company Odoo</span>
+              <span className="block text-muted-foreground">
+                {p.odoo_connected ? `Logs in as ${p.odoo_user}` : "Not connected. Set its Odoo user and password in its profile (Agents > Company Odoo)."}
+              </span>
+            </span>
+            <Pill tone={p.odoo_connected ? "ok" : "warn"}>{p.odoo_connected ? "Connected" : "Not set"}</Pill>
+          </div>
+        ) : (
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Odoo user (login)
+            <input className={field} onChange={(e) => setF({ ...f, odoo_user: e.target.value })} placeholder="name@unlimitedsolutions.technology" value={f.odoo_user} />
+            <span className="text-[11px]">Shows their Odoo tasks next to the team.</span>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Photo link (optional)
           <input className={field} onChange={(e) => setF({ ...f, avatar: e.target.value })} placeholder="https://…" value={f.avatar} />

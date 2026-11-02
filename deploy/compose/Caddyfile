@@ -6,8 +6,18 @@
     uri strip_prefix /unlimited-api
     reverse_proxy 172.30.0.1:8765
   }
+  # Unlimited: phone line (Twilio call webhook + audio stream). The webhook path carries a secret.
+  handle /unlimited-api/phone/twilio/* {
+    uri strip_prefix /unlimited-api
+    reverse_proxy 172.30.0.1:8765
+  }
   handle /unlimited-api/* {
     respond 404
+  }
+
+  # Unlimited: mobile pairing handshakes (Settings > Mobile) go to the pairing sidecar.
+  handle /pair {
+    reverse_proxy pair-relay:5000
   }
 
   # Unlimited: browsers get our private landing page; invites get our own page;

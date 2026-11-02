@@ -46,6 +46,7 @@ export function orgDemo(_method: string, path: string): unknown {
     return { id: "demo-plan", date: new Date().toISOString().slice(0, 10), lead: "ai:hany", status: "pending", approver: "human:k", created_at: iso(60),
       rows, lead_member: people[2], approver_member: people[1], team: [people[5], people[6], people[7]],
       notes: ["#420 needs the client CSV. Hany asked Salma to chase it."] };
+  if (path.endsWith("/odoo")) return { login: "omar@unlimitedsolutions.technology", connected: true, checked_at: iso(30) };
   if (path.endsWith("/day"))
     return { member: people[5], manager: people[2], reports: [], approvers: { plan: people[1], drafted_by: people[2], staging: people[8], production: people[0] },
       date: "", plan_status: "approved", tasks: rows[0]!.tasks, done: 2, hours: 6, spent: 5.5 };

@@ -2002,6 +2002,7 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
   late final _odoo = TextEditingController(text: widget.person.odooUser);
   late final _title = TextEditingController(text: widget.person.title);
   late final _avatar = TextEditingController(text: widget.person.avatar);
+  final _odooKey = TextEditingController();
   late final Set<String> _approves = {...widget.person.approves};
   bool _busy = false;
 
@@ -2009,9 +2010,15 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
     setState(() => _busy = true);
     final p = widget.person;
     try {
+      final login = _odoo.text.trim();
+      if (p.isAi && login.isNotEmpty &&
+          (login != p.odooUser || _odooKey.text.trim().isNotEmpty || !p.odooConnected)) {
+        await uApi(ref).memberOdoo(p.id, login: login, key: _odooKey.text.trim());
+        _odooKey.clear();
+      }
       await uApi(ref).updateMember(p.id, {
         'reports_to': _to,
-        'odoo_user': _odoo.text.trim(),
+        if (!p.isAi) 'odoo_user': login,
         'avatar': _avatar.text.trim(),
         if (p.isAi) 'capacity': _cap,
         if (!p.isAi) 'approves': _approves.toList(),
@@ -2074,15 +2081,32 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
             autocorrect: false,
             decoration: _field(
               context,
-              'Odoo user (login)',
+              p.isAi ? 'Odoo login' : 'Odoo user (login)',
               hint: 'name@unlimitedsolutions.technology',
             ),
           ),
+          if (p.isAi) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: _odooKey,
+              obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              decoration: _field(
+                context,
+                p.odooConnected
+                    ? 'Odoo password or API key (empty keeps the saved one)'
+                    : 'Odoo password or API key',
+              ),
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 6, 4, 12),
             child: Text(
               p.isAi
-                  ? 'Tasks assigned to this Odoo user go to ${p.first} first. The lead shares out unassigned tasks.'
+                  ? (p.odooConnected
+                        ? '${p.first} logs in to the company Odoo as ${p.odooUser}. Tasks you assign to this user reach ${p.first} within minutes.'
+                        : 'Create the user in Odoo, then enter its login and password here. ${p.first} reads its tasks and writes feedback as itself.')
                   : 'Shows their Odoo tasks next to the team.',
               style: u.sub,
             ),

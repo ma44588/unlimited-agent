@@ -33,6 +33,7 @@ class OrgPerson {
       [for (final a in (j['reports'] as List? ?? const [])) _s(a)];
   int get capacity => _i(j['capacity']) == 0 ? 3 : _i(j['capacity']);
   String get odooUser => _s(j['odoo_user']);
+  bool get odooConnected => j['odoo_connected'] == true;
   bool get running => j['status'] == 'running' || j['status'] == 'up';
   String get first => name.split(RegExp(r'\s+')).first;
 }
@@ -249,6 +250,20 @@ extension UnlimitedOrgApi on UnlimitedApi {
 
   Future<OrgData> removeMember(String id) =>
       updateMember(id, {'action': 'remove'});
+
+  /// The employee's own Odoo user; the password or API key is never returned.
+  Future<Map<String, dynamic>> memberOdoo(
+    String id, {
+    String? login,
+    String? key,
+    bool remove = false,
+  }) async => _m(
+    await post('/admin/org/members/${Uri.encodeComponent(id)}/odoo', {
+      if (remove) 'action': 'remove',
+      'login': ?login,
+      'key': ?key,
+    }),
+  );
 
   Future<OrgData> addPerson(Map<String, Object?> fields) async =>
       OrgData(_m(await post('/admin/org/humans', fields)));

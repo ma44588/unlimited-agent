@@ -20,6 +20,8 @@ export type OrgPerson = {
   capacity?: number;
   hours?: number;
   odoo_user?: string;
+  /** The employee has its own Odoo login stored (the password never comes back). */
+  odoo_connected?: boolean;
   owner?: boolean;
   lead?: boolean;
   reports?: string[];
@@ -122,6 +124,9 @@ export const orgApi = {
   addPerson: (fields: { pubkey: string; name: string; title?: string; reports_to?: string; approves?: OrgAction[] }) =>
     request<Org>("POST", "/admin/org/humans", fields),
   settings: (fields: Partial<OrgSettings>) => request<Org>("POST", "/admin/org/settings", fields),
+  /** The employee's own Odoo user: {} reads the status, {login, key} saves it, {action: "remove"} clears it. */
+  memberOdoo: (id: string, body: { login?: string; key?: string; action?: "remove" } = {}) =>
+    request<{ login: string; connected: boolean; checked_at?: string }>("POST", `/admin/org/members/${enc(id)}/odoo`, body),
   odooProjects: () => request<{ id: number; name: string }[]>("GET", "/admin/org/odoo-projects"),
 };
 
