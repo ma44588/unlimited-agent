@@ -29,6 +29,7 @@ jobs:
         run: |
           python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow || true
           python3 unlimited/brand_mobile.py
+          cd mobile && flutter pub get
       - name: Build simulator app
         run: cd mobile && flutter build ios --simulator --debug --no-pub
       - name: Package
@@ -69,6 +70,7 @@ jobs:
         run: |
           python3 -m pip install --quiet --break-system-packages pillow || python3 -m pip install --quiet pillow || true
           python3 unlimited/brand_mobile.py
+          cd mobile && flutter pub get
       - name: App Store Connect key
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}

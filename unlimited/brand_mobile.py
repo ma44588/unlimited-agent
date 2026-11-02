@@ -254,6 +254,11 @@ PATCHES = [
      "              invitePageBuilder: (_) => const CommunityInvitePage(),\n              chats: HomePage(\n"),
     ("lib/app.dart", "              communityAppearancePageBuilder: (_) => const ThemePickerPage(),\n            ),\n          ),\n",
      "              communityAppearancePageBuilder: (_) => const ThemePickerPage(),\n            ),\n            ),\n          ),\n"),
+    # Live voice calls with the employees (WebRTC to OpenAI Realtime through the Unlimited server).
+    ("pubspec.yaml", "  record: ^6.2.1\n", "  record: ^6.2.1\n  flutter_webrtc: ^1.6.3\n"),
+    ("ios/Runner/Info.plist",
+     "<string>Buzz needs microphone access so you can speak in Huddles and record voice notes.</string>",
+     "<string>Unlimited Agent needs the microphone for calls with your team, Huddles and voice notes.</string>"),
     # Deep night palette for the app's dark mode, and dark by default.
     ("lib/shared/theme/theme_catalog.dart",
      "    name: 'buzz-dark',\n    bg: Color(0xFF24292E),\n    fg: Color(0xFFE1E4E8),\n    comment: Color(0xFF6A737D),",

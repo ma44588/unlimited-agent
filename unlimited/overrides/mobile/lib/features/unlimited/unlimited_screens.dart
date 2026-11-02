@@ -12,6 +12,7 @@ import '../../shared/relay/relay_provider.dart';
 import '../channels/channel_detail_page.dart';
 import '../channels/channel_management_provider.dart';
 import 'ud.dart';
+import 'unlimited_call_screen.dart';
 import 'unlimited_api.dart';
 
 UnlimitedApi uApi(WidgetRef ref) => UnlimitedApi(ref.read(relayConfigProvider));
@@ -745,12 +746,18 @@ class _UEmployeeScreenState extends ConsumerState<UEmployeeScreen> {
   }
 
   void _call() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Live calls from the phone arrive in the next update. '
-          'Call from the desktop for now.',
+    if (!widget.employee.running) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${widget.employee.displayName} is not running.'),
         ),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => UCallScreen(employee: widget.employee),
       ),
     );
   }
