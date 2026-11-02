@@ -15,6 +15,7 @@ const AGENT_INFO: Record<string, string> = {
 const CHECK_LABEL: Record<string, string> = {
   github: "GitHub write access",
   build: "Latest staging build found",
+  firewall: "Odoo.sh firewall allows this server",
   ssh: "Server reaches the build",
   agent: "Agent user ready on staging",
   version: "Odoo version detected",
@@ -110,8 +111,14 @@ export function ConnectOdooWizard({
       );
       setSaved(p);
       setStep(4);
-      const res = await odooApi.check(p.id);
+      let res = await odooApi.check(p.id);
       setChecks(res.steps);
+      // Odoo.sh applies firewall changes within ~5 minutes: re-check by itself while it settles.
+      for (let i = 0; res.pending && i < 16; i += 1) {
+        await new Promise((r) => setTimeout(r, 30000));
+        res = await odooApi.check(p.id);
+        setChecks(res.steps);
+      }
     } catch (e) {
       setError((e as Error).message);
       setChecks((c) => c ?? []);
@@ -317,6 +324,8 @@ export function ConnectOdooWizard({
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     ) : s.ok ? (
                       <CircleCheck className="h-4 w-4 text-emerald-600" />
+                    ) : s.pending ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
                     ) : (
                       <CircleX className="h-4 w-4 text-destructive" />
                     )}

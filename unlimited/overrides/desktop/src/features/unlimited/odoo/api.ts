@@ -25,7 +25,7 @@ export type OdooProject = {
 };
 export type OdooShProject = { name: string; repo: string; version: string; connected_as: string | null };
 export type OdooShBranch = { id: number; name: string; stage: string; locked: boolean; build_state: string };
-export type CheckStep = { key: string; ok: boolean; detail: unknown };
+export type CheckStep = { key: string; ok: boolean; pending?: boolean; detail: unknown };
 export type Approval = { id: string; ts: string; agent: string; project: string; tool: string; args: string; reason: string };
 export type ActivityEvent = { seq: number; ts: string; agent: string; project: string; tool: string; outcome: string; detail: string };
 export type SessionStatus = { ok?: boolean; expired?: boolean; checked_at?: string; error?: string };
@@ -175,7 +175,7 @@ export const odooApi = {
     cicdoo_project?: string;
   }) =>
     request<OdooProject>("POST", "/admin/projects", input),
-  check: (pid: string) => request<{ ok: boolean; steps: CheckStep[] }>("POST", `/admin/projects/${pid}/check`, {}),
+  check: (pid: string) => request<{ ok: boolean; pending?: boolean; steps: CheckStep[] }>("POST", `/admin/projects/${pid}/check`, {}),
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
   outbox: () => request<OutboxItem[]>("GET", "/admin/outbox"),
