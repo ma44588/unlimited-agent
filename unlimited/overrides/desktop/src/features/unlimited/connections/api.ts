@@ -1,7 +1,7 @@
 /** Connections API (connector /admin/connections), signed with the owner's key like the other admin calls. */
 import { isDemo, request } from "../odoo/api";
 
-export type ConnKind = "github" | "odoosh" | "cicdoo" | "server" | "email" | "voice" | "company_odoo";
+export type ConnKind = "github" | "odoosh" | "cicdoo" | "server" | "email" | "voice" | "company_odoo" | "push";
 export type ConnState = "connected" | "attention" | "off";
 
 export type ConnItem = {
@@ -23,6 +23,10 @@ export type ConnItem = {
   /** voice: which call services have a key on the server (keys never returned). */
   providers?: { id: VoiceProvider; name: string; connected: boolean; checked_at?: string }[];
   engine?: "realtime" | "split" | "device";
+  /** push: the Apple key (never returned) and how many phones registered. */
+  key_id?: string;
+  team_id?: string;
+  phones?: number;
 };
 export type VoiceProvider = "openai" | "gemini" | "anthropic" | "elevenlabs";
 
@@ -59,6 +63,7 @@ export const connectionsApi = {
   githubStart: () => call<{ url: string; step: string }>("POST", "/admin/connections/github", { action: "start" }),
   save: (kind: ConnKind, data: Record<string, unknown>) => call("POST", `/admin/connections/${kind}`, { action: "save", ...data }),
   check: (kind: ConnKind) => call("POST", `/admin/connections/${kind}`, { action: "check" }),
+  pushTest: () => call("POST", "/admin/push/test", {}),
   disconnect: (kind: ConnKind) => call("POST", `/admin/connections/${kind}`, { action: "disconnect" }),
   voiceSave: (provider: VoiceProvider, key: string) => call("POST", "/admin/connections/voice", { action: "save", provider, key }),
   voiceRemove: (provider: VoiceProvider) => call("POST", "/admin/connections/voice", { action: "remove", provider }),

@@ -3,10 +3,12 @@
 // waits for the owner. Chats is the existing messaging home, unchanged.
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
+import '../../shared/push/push_bridge.dart' show apnsDeviceToken;
 import '../../shared/relay/relay_provider.dart';
 import 'unlimited_api.dart';
 import 'ud.dart';
@@ -53,12 +55,44 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
   @override
   void initState() {
     super.initState();
+    unawaited(_startPush());
     unawaited(_refresh());
     _timer = Timer.periodic(const Duration(seconds: 90), (_) => _refresh());
   }
 
+  /// Phone notifications from Unlimited Agent: ask iOS for a device token and give it to the server, signed
+  /// with this phone's key, so approvals and plans reach this person.
+  Future<void> _startPush() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    apnsDeviceToken.addListener(_sendPushToken);
+    _sendPushToken();
+    try {
+      await const MethodChannel('buzz/push').invokeMethod<void>('startRegistration');
+    } catch (_) {}
+  }
+
+  String? _sentToken;
+
+  void _sendPushToken() {
+    final token = apnsDeviceToken.value;
+    if (token == null || token.isEmpty || token == _sentToken) return;
+    _sentToken = token;
+    unawaited(
+      UnlimitedApi(ref.read(relayConfigProvider))
+          .post('/admin/push/register', {
+            'token': token,
+            'env': kReleaseMode ? 'production' : 'sandbox',
+          })
+          .catchError((Object _) {
+            _sentToken = null;
+            return null;
+          }),
+    );
+  }
+
   @override
   void dispose() {
+    apnsDeviceToken.removeListener(_sendPushToken);
     _timer?.cancel();
     super.dispose();
   }
