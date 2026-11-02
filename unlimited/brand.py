@@ -99,6 +99,70 @@ PROJECTS_UI = DESKTOP / "src" / "features" / "projects" / "ui"
 # (file, anchor, replacement, marker) — each anchor must exist exactly once, so an upstream change
 # that moves it fails the build loudly instead of silently dropping the tab.
 PATCHES = [
+    # Agents page: no local agents, so no local "agent defaults" or "stop running agents" buttons.
+    (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
+     "          <PageHeader\n            action={\n              <>\n",
+     "          <PageHeader\n            action={\n              // Unlimited: employees run on the server only.\n              false && <>\n",
+     "// Unlimited: employees run on the server only."),
+    # Profile panel: server employees are the owner's agents (Harness log / Logs from the server, Edit = Profile).
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     'import { isRelayRemovedError } from "@/features/agents/managedAgentRelayCleanup";\n',
+     'import { isRelayRemovedError } from "@/features/agents/managedAgentRelayCleanup";\n'
+     'import { ServerEmployeeSettingsDialog } from "@/features/unlimited/agents/ServerEmployeeDialogs";\n'
+     'import { ServerEmployeeLogView, useServerEmployee } from "@/features/unlimited/agents/ServerEmployeeProfileBridge";\n',
+     "useServerEmployee } from"),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     "  const relayAgent = relayAgentsQuery.data?.find(\n",
+     "  const serverEmployee = useServerEmployee(pubkeyLower);\n"
+     "  const [serverEditOpen, setServerEditOpen] = React.useState(false);\n"
+     "  const relayAgent = relayAgentsQuery.data?.find(\n",
+     "const serverEmployee = useServerEmployee("),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     "  const isOwner = resolvedPersona ? true : managedAgentOwner;\n",
+     "  const isOwner = resolvedPersona || serverEmployee ? true : managedAgentOwner;\n",
+     "resolvedPersona || serverEmployee ? true"),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     "  const canEditAgent = Boolean(isOwner && (managedAgent ?? resolvedPersona));\n",
+     "  const canEditAgent = Boolean(isOwner && (managedAgent ?? resolvedPersona ?? serverEmployee));\n",
+     "resolvedPersona ?? serverEmployee"),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     '    isOwner === true && managedAgent?.backend.type === "local";\n',
+     '    (isOwner === true && managedAgent?.backend.type === "local") || serverEmployee !== undefined;\n',
+     '|| serverEmployee !== undefined;'),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     "    if (openResolvedPersonaEditor()) return;\n",
+     "    if (serverEmployee) {\n      setServerEditOpen(true);\n      return;\n    }\n    if (openResolvedPersonaEditor()) return;\n",
+     "setServerEditOpen(true);"),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     "  }, [openResolvedPersonaEditor, setEditAgentOpen]);\n",
+     "  }, [openResolvedPersonaEditor, serverEmployee, setEditAgentOpen]);\n",
+     "[openResolvedPersonaEditor, serverEmployee,"),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     '      {view === "diagnostics" ? (\n',
+     '      {view === "diagnostics" && serverEmployee ? <ServerEmployeeLogView employee={serverEmployee} /> : null}\n'
+     '      {view === "diagnostics" && !serverEmployee ? (\n',
+     'view === "diagnostics" && serverEmployee'),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     '      {view === "logs" ? (\n',
+     '      {view === "logs" && serverEmployee ? <ServerEmployeeLogView employee={serverEmployee} /> : null}\n'
+     '      {view === "logs" && !serverEmployee ? (\n',
+     'view === "logs" && serverEmployee'),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "UserProfilePanel.tsx",
+     "      ) : null}\n    </AuxiliaryPanelBody>\n",
+     "      ) : null}\n      <ServerEmployeeSettingsDialog\n"
+     "        employee={serverEditOpen && serverEmployee ? serverEmployee : null}\n"
+     "        onOpenChange={(o) => !o && setServerEditOpen(false)}\n      />\n    </AuxiliaryPanelBody>\n",
+     "<ServerEmployeeSettingsDialog"),
+    # Settings > Voice: paid voice for calls with employees.
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "VoiceSettingsCard.tsx",
+     'import { SettingsSectionHeader } from "./SettingsSectionHeader";\n',
+     'import { SettingsSectionHeader } from "./SettingsSectionHeader";\n'
+     'import { CallsVoiceGroup } from "@/features/unlimited/voice/CallsVoiceGroup";\n',
+     "import { CallsVoiceGroup }"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "VoiceSettingsCard.tsx",
+     "      </SettingsOptionGroupList>\n",
+     "        <CallsVoiceGroup />\n      </SettingsOptionGroupList>\n",
+     "<CallsVoiceGroup />"),
     # Odoo.sh sign-in inside the app (Settings > Connections): register the Rust command.
     (DESKTOP / "src-tauri" / "src" / "lib.rs",
      "mod app_menu;\n",

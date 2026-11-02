@@ -5,7 +5,7 @@
  * Every save goes to the server (connector → agentctl); nothing is created or run on this computer.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Loader2, Play, Plus, RotateCcw, Server, Square, Trash2, X } from "lucide-react";
+import { AtSign, ChevronDown, Loader2, Play, Plus, RotateCcw, Send, Server, ShieldCheck, Square, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { EnvVarsEditor } from "@/features/agents/ui/EnvVarsEditor";
 import { PersonaDropdownField } from "@/features/agents/ui/PersonaDropdownField";
 import { CreateAgentRespondToField } from "@/features/agents/ui/RespondToField";
 import {
+  isDemo,
   odooApi,
   type ServerEmployee,
   type ServerEmployeeDetails,
@@ -49,7 +50,26 @@ const EFFORT_OPTIONS: PersonaDropdownOption[] = [
   { value: "24000", label: "Max" },
 ];
 
-type Draft = ServerEmployeeInput;
+type Draft = ServerEmployeeInput & {
+  person: string;
+  title: string;
+  department: string;
+  email: string;
+  voice: string;
+};
+
+const DEPARTMENT_OPTIONS: PersonaDropdownOption[] = [
+  { value: "Development", label: "Development" },
+  { value: "Implementation", label: "Implementation" },
+  { value: "Analysis", label: "Analysis" },
+  { value: "Marketing & Sales", label: "Marketing & Sales" },
+  { value: "Opportunities", label: "Opportunities" },
+];
+
+const VOICE_OPTIONS: PersonaDropdownOption[] = [
+  "Omar · Egyptian, calm", "Karim · Egyptian", "Mariam · Egyptian, warm", "Laila · Egyptian, clear",
+  "Youssef · Gulf", "Faisal · Gulf, warm", "Nada · MSA", "Nour · MSA, brief",
+].map((v) => ({ value: v, label: v }));
 
 const EMPTY: Draft = {
   name: "",
@@ -65,6 +85,11 @@ const EMPTY: Draft = {
   allow: [],
   env: {},
   mcp: [],
+  person: "",
+  title: "",
+  department: "Development",
+  email: "",
+  voice: "",
 };
 
 function fromDetails(d: ServerEmployeeDetails): Draft {
@@ -82,7 +107,60 @@ function fromDetails(d: ServerEmployeeDetails): Draft {
     allow: d.allow || [],
     env: d.env || {},
     mcp: d.mcp || [],
+    person: d.person || "",
+    title: d.title || "",
+    department: d.department || "Development",
+    email: d.email?.address || "",
+    voice: d.voice || "",
   };
+}
+
+function ChannelsField({ details, draft, set, disabled }: {
+  details?: ServerEmployeeDetails;
+  draft: Draft;
+  set: <K extends keyof Draft>(key: K, value: Draft[K]) => void;
+  disabled: boolean;
+}) {
+  const tg = details?.telegram;
+  const mailOk = !!details?.email?.ok;
+  const dot = (ok: boolean) => <span className={cn("h-1.5 w-1.5 rounded-full", ok ? "bg-emerald-500" : "bg-muted-foreground/50")} />;
+  return (
+    <div className="space-y-1.5">
+      <Label>Channels</Label>
+      <div className={cn("divide-y divide-border/60 overflow-hidden", PERSONA_FIELD_SHELL_CLASS)}>
+        <div className="space-y-2 px-3 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Send className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-foreground">Telegram</span>
+            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">{dot(!!tg?.ok)} {tg?.ok ? tg.bot : "Not connected"}</span>
+          </div>
+          {tg?.ok ? (
+            <p className="text-xs text-muted-foreground">Posts in its team group and replies to you in private. Only you can give it orders.</p>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">In Telegram open @BotFather, send /newbot with this employee's name, and paste the token:</p>
+              <div className="flex gap-2">
+                <Input autoComplete="off" className="h-8 text-xs" disabled={disabled} placeholder="123456:ABC…" type="password" />
+                <Button disabled={disabled} size="sm" type="button">Connect</Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="space-y-2 px-3 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <AtSign className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium text-foreground">Email</span>
+            <span className="ms-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">{dot(mailOk)} {mailOk ? "Receiving" : "Not set up"}</span>
+          </div>
+          <Input className="h-8 text-xs" disabled={disabled} onChange={(e) => set("email", e.target.value)} placeholder="name@unlimitedsolutions.technology" value={draft.email} />
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            An alias of the team mailbox on Hostinger. Mail to it reaches this employee; replies go out only after you approve them.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Label({ htmlFor, children, optional }: { htmlFor?: string; children: React.ReactNode; optional?: boolean }) {
@@ -359,8 +437,9 @@ function ServerEmployeeDialog({
     if (!canSubmit) return;
     setPending(true);
     setError(null);
-    const payload: Draft = {
-      ...draft,
+    const { person: _p, title: _t, department: _d, email: _e, voice: _v, ...base } = draft;
+    const payload: ServerEmployeeInput = {
+      ...base,
       name: draft.name.trim(),
       role: draft.about.trim(),
       about: draft.about.trim(),
@@ -409,7 +488,7 @@ function ServerEmployeeDialog({
         onOpenChange(next);
       }}
       open={open}
-      title={editing ? `${employee.name} · Settings` : "New server employee"}
+      title={editing ? `${details?.person || employee.name} · ${details?.person ? "Profile" : "Settings"}` : "New server employee"}
     >
       {loading ? (
         <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
@@ -444,6 +523,40 @@ function ServerEmployeeDialog({
               <p className="-mt-3 text-xs text-destructive">Use an English name: letters, digits, spaces or “-”.</p>
             ) : null}
 
+            {isDemo() ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="server-employee-person" optional>Full name</Label>
+                <div className={PERSONA_FIELD_SHELL_CLASS}>
+                  <Input className={cn("h-10 px-3", PERSONA_FIELD_CONTROL_CLASS)} dir="auto" disabled={pending} id="server-employee-person"
+                    onChange={(e) => set("person", e.target.value)} placeholder="Omar Hassan" value={draft.person} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="server-employee-title">Job title</Label>
+                <div className={PERSONA_FIELD_SHELL_CLASS}>
+                  <Input className={cn("h-10 px-3", PERSONA_FIELD_CONTROL_CLASS)} dir="auto" disabled={pending} id="server-employee-title"
+                    onChange={(e) => set("title", e.target.value)} placeholder="Senior Odoo Developer" value={draft.title} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="server-employee-department">Department</Label>
+                <PersonaDropdownField disabled={pending} id="server-employee-department" onValueChange={(v) => set("department", v)}
+                  options={DEPARTMENT_OPTIONS} placeholder="Choose a department" value={draft.department} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="server-employee-voice">Voice in calls</Label>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <PersonaDropdownField disabled={pending} id="server-employee-voice" onValueChange={(v) => set("voice", v)}
+                      options={VOICE_OPTIONS} placeholder="Choose a voice" value={draft.voice} />
+                  </div>
+                  <Button className="h-10" disabled={!draft.voice} size="sm" type="button" variant="outline"><Play /> Play</Button>
+                </div>
+              </div>
+            </div>
+            ) : null}
+
             <div className="space-y-1.5">
               <Label htmlFor="server-employee-instructions">Agent instructions</Label>
               <div className={PERSONA_FIELD_SHELL_CLASS}>
@@ -458,6 +571,8 @@ function ServerEmployeeDialog({
                 />
               </div>
             </div>
+
+            {isDemo() ? <ChannelsField details={details} disabled={pending} draft={draft} set={set} /> : null}
 
             <div className="space-y-1.5">
               <Label>Runs on</Label>

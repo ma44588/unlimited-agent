@@ -62,6 +62,13 @@ export type ServerEmployee = {
   respond_to?: ServerRespondTo;
   allow?: string[];
   status: string;
+  /** Profile (design preview): the employee as a person. */
+  person?: string;
+  title?: string;
+  department?: string;
+  telegram?: { bot?: string; ok: boolean };
+  email?: { address?: string; ok: boolean };
+  voice?: string;
 };
 export type ServerEmployeeDetails = ServerEmployee & {
   instructions: string;
@@ -190,6 +197,8 @@ export const odooApi = {
     request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}`, input),
   serverAgentAction: (slug: string, input: { do: "start" | "stop" | "restart" | "delete" | "memory_delete"; file?: string }) =>
     request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, input),
+  serverAgentLogs: (slug: string, lines = 400) =>
+    request<{ slug: string; log: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, { do: "logs", lines }),
   taskStages: (buzzId: string) =>
     request<import("@/features/unlimited/tasks/taskDesk").TaskStages>(
       "GET",
@@ -221,13 +230,24 @@ const demoState: { projects: Record<string, OdooProject>; approvals: Approval[] 
     },
   ],
 };
+const DM = "unlimitedsolutions.technology";
+const demoEmp = (slug: string, name: string, person: string, title: string, department: string, about: string,
+  tg: boolean, mail: boolean, voice: string, ch: string): ServerEmployee => ({
+  slug, name, role: about, about, avatar: "", pubkey: ch.repeat(64), builtin: slug === "developer" || slug === "documentation",
+  projects: ["*"], model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running",
+  person, title, department, voice,
+  telegram: { bot: tg ? `@us_${slug.replace(/-/g, "_")}_bot` : undefined, ok: tg },
+  email: { address: `${slug.split("-")[0]}@${DM}`, ok: mail },
+});
 const DEMO_EMPLOYEES: ServerEmployee[] = [
-  { slug: "developer", name: "Developer", role: "Odoo developer: analysis, building on stag, build and test follow-up",
-    about: "Odoo developer on the Unlimited server", avatar: "", pubkey: "e".repeat(64), builtin: true, projects: ["*"],
-    model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
-  { slug: "documentation", name: "Documentation", role: "Documentation: team summaries and user guides",
-    about: "", avatar: "", pubkey: "d".repeat(64), builtin: true, projects: ["*"],
-    model: "opus", thinking: 12000, respond_to: "owner-only", allow: [], status: "running" },
+  demoEmp("developer", "Developer", "Omar Hassan", "Senior Odoo Developer", "Development", "Builds Odoo modules on staging and follows the builds", true, true, "Omar · Egyptian, calm", "e"),
+  demoEmp("reviewer", "Reviewer", "Karim Adel", "QA & Code Reviewer", "Development", "Reviews code and tests every change on staging", true, false, "Karim · Egyptian", "a"),
+  demoEmp("documentation", "Documentation", "Mariam Fathy", "Technical Writer", "Development", "User guides with screenshots and team summaries", false, true, "Mariam · Egyptian, warm", "d"),
+  demoEmp("implementer", "Implementer", "Youssef Samir", "Odoo Implementation Consultant", "Implementation", "Configures Odoo, imports data and sets up workflows", true, true, "Youssef · Gulf", "b"),
+  demoEmp("analyst", "Analyst", "Laila Mostafa", "Business Analyst", "Analysis", "Requirements, gap analysis and reports from Odoo data", true, true, "Laila · Egyptian, clear", "c"),
+  demoEmp("sales", "Sales", "Faisal Al-Harbi", "Sales & Partnerships", "Marketing & Sales", "Quotations and follow-ups (drafts, you approve)", true, true, "Faisal · Gulf, warm", "f"),
+  demoEmp("researcher", "Researcher", "Nada Ibrahim", "Market Researcher", "Marketing & Sales", "Markets, competitors and client profiles", false, false, "Nada · MSA", "9"),
+  demoEmp("scout", "Scout", "Nour Khaled", "Opportunity Scout", "Opportunities", "Finds tenders and leads every morning and sends you the best", true, true, "Nour · MSA, brief", "8"),
 ];
 
 const DEMO_FILES: AgentFile[] = [
@@ -367,6 +387,18 @@ async function demo<T>(method: string, path: string, body?: unknown): Promise<T>
       env: { ODOO_DEFAULT_LANG: "ar_001" },
       mcp: [],
     } as T;
+  }
+  if (path.endsWith("/action") && (body as { do?: string } | undefined)?.do === "logs") {
+    const t = (m: number) => new Date(Date.now() - m * 60000).toISOString();
+    return { slug: "demo", log: [
+      `${t(42)} buzz-acp: connected to wss://app.unlimitedsolutions.technology as developer`,
+      `${t(41)} buzz-acp: task "POS dark mode" assigned by owner`,
+      `${t(40)} claude-agent-acp: session started (model claude-opus-5-5, effort high)`,
+      `${t(38)} tool odoo.search_read pos.config -> 3 records`,
+      `${t(31)} tool git.push stag (ma44588/diraty) -> ok`,
+      `${t(30)} tool odoosh.build_status stag -> success #40960206`,
+      `${t(29)} buzz-acp: posted 🧪 test report in #diraty`,
+    ].join("\n") } as T;
   }
   if (path.startsWith("/admin/server-agents")) return { slug: "demo" } as T;
   if ((m = path.match(/^\/admin\/outbox\/(.+)$/))) {
