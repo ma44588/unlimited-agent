@@ -11,6 +11,7 @@ export const UNLIMITED_API = "https://app.unlimitedsolutions.technology/unlimite
 
 export type OdooProject = {
   id: string;
+  provider?: string;
   name: string;
   repo: string;
   branch: string;
@@ -163,7 +164,15 @@ export const odooApi = {
   branches: (project: string) =>
     request<OdooShBranch[]>("GET", `/admin/odoosh/branches?project=${encodeURIComponent(project)}`),
   byBuzz: (buzzId: string) => request<OdooProject | null>("GET", `/admin/projects/by-buzz/${encodeURIComponent(buzzId)}`),
-  save: (input: { buzz_project: string; name: string; odoosh_project: string; branch: string; agents: string[] }) =>
+  save: (input: {
+    buzz_project: string;
+    name: string;
+    odoosh_project: string;
+    branch: string;
+    agents: string[];
+    provider?: "cicdoo";
+    cicdoo_project?: string;
+  }) =>
     request<OdooProject>("POST", "/admin/projects", input),
   check: (pid: string) => request<{ ok: boolean; steps: CheckStep[] }>("POST", `/admin/projects/${pid}/check`, {}),
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
@@ -187,6 +196,12 @@ export const odooApi = {
     ),
   decideEmail: (aid: string, decision: "approve" | "reject", edits?: { subject?: string; body?: string }) =>
     request<{ sent?: boolean }>("POST", `/admin/outbox/${aid}`, { decision, ...(edits ? { edits } : {}) }),
+  cicdooProjects: () =>
+    request<{ uuid: string; name: string; repo: string; version: string; edition: string; connected_as: string | null }[]>(
+      "GET",
+      "/admin/cicdoo/projects",
+    ),
+  cicdooBranches: (uuid: string) => request<OdooShBranch[]>("GET", `/admin/cicdoo/branches?project=${encodeURIComponent(uuid)}`),
   cicdooStatus: () => request<CicdooStatus>("GET", "/admin/providers/cicdoo"),
   cicdooConnect: (token: string) => request<{ connected: boolean; tools?: number }>("POST", "/admin/providers/cicdoo", { token }),
   cicdooDisconnect: () => request<{ connected: boolean }>("POST", "/admin/providers/cicdoo", { disconnect: true }),

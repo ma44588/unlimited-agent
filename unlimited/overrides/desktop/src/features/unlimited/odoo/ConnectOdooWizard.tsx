@@ -18,6 +18,7 @@ const CHECK_LABEL: Record<string, string> = {
   ssh: "Server reaches the build",
   agent: "Agent user ready on staging",
   version: "Odoo version detected",
+  instance: "Staging instance answers",
 };
 
 function titleCase(s: string) {
@@ -51,20 +52,35 @@ export function ConnectOdooWizard({
   const [busy, setBusy] = React.useState(false);
   const [saved, setSaved] = React.useState<OdooProject | null>(null);
   const [checks, setChecks] = React.useState<CheckStep[] | null>(null);
-  const [hosting, setHosting] = React.useState<"odoosh" | "cicdoo">("odoosh");
+  const [hosting, setHosting] = React.useState<"odoosh" | "cicdoo">(existing?.provider === "cicdoo" ? "cicdoo" : "odoosh");
+  const [cicdooReady, setCicdooReady] = React.useState(false);
+  const cicdooIds = React.useRef<Record<string, string>>({});
+  const source = hosting === "cicdoo" ? "CICDoo" : "Odoo.sh";
 
   React.useEffect(() => {
     if (!open) return;
     setError(null);
-    odooApi.odooShProjects().then(setProjects).catch((e: Error) => setError(e.message));
+    setProjects(null);
+    if (hosting === "cicdoo") {
+      if (!cicdooReady) return;
+      odooApi
+        .cicdooProjects()
+        .then((rows) => {
+          cicdooIds.current = Object.fromEntries(rows.map((r) => [r.name, r.uuid]));
+          setProjects(rows.map((r) => ({ name: r.name, repo: r.repo, version: r.version, connected_as: r.connected_as })));
+        })
+        .catch((e: Error) => setError(e.message));
+    } else {
+      odooApi.odooShProjects().then(setProjects).catch((e: Error) => setError(e.message));
+    }
     odooApi.overview().then((o) => setAllAgents(o.agents)).catch(() => undefined);
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hosting, cicdooReady]);
 
   React.useEffect(() => {
     if (!odooSh) return;
     setBranches(null);
-    odooApi
-      .branches(odooSh)
+    (hosting === "cicdoo" ? odooApi.cicdooBranches(cicdooIds.current[odooSh] ?? "") : odooApi.branches(odooSh))
       .then((rows) => {
         setBranches(rows);
         const staging = rows.filter((b) => b.stage === "staging" && !b.locked);
@@ -80,13 +96,18 @@ export function ConnectOdooWizard({
   const filtered = (projects ?? []).filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
 
   const canNext =
-    (step === 0 && hosting === "odoosh") || (step === 1 && Boolean(odooSh) && stagingBranches.some((b) => b.name === branch)) || step === 2;
+    (step === 0 && (hosting === "odoosh" || cicdooReady)) || (step === 1 && Boolean(odooSh) && stagingBranches.some((b) => b.name === branch)) || step === 2;
 
   async function connect() {
     setBusy(true);
     setError(null);
     try {
-      const p = await odooApi.save({ buzz_project: buzzProjectId, name: defaultName, odoosh_project: odooSh, branch, agents });
+      const p = await odooApi.save(
+        hosting === "cicdoo"
+          ? { buzz_project: buzzProjectId, name: defaultName, odoosh_project: "", branch, agents, provider: "cicdoo",
+              cicdoo_project: cicdooIds.current[odooSh] ?? "" }
+          : { buzz_project: buzzProjectId, name: defaultName, odoosh_project: odooSh, branch, agents },
+      );
       setSaved(p);
       setStep(4);
       const res = await odooApi.check(p.id);
@@ -165,14 +186,14 @@ export function ConnectOdooWizard({
                   Your servers on CICDoo. Agents work on a staging instance only.
                 </span>
               </label>
-              {hosting === "cicdoo" ? <CicdooConnect /> : null}
+              {hosting === "cicdoo" ? <CicdooConnect onReady={setCicdooReady} /> : null}
             </fieldset>
           ) : null}
 
           {step === 1 ? (
             <>
               <div className="flex flex-col gap-2">
-                <span className="text-sm font-semibold">Odoo.sh projects on your account</span>
+                <span className="text-sm font-semibold">{source} projects on your account</span>
                 <label className="flex h-10 items-center gap-2 rounded-lg border border-input px-3 text-muted-foreground">
                   <Search className="h-4 w-4" />
                   <input
@@ -187,7 +208,7 @@ export function ConnectOdooWizard({
                 <div className="max-h-56 overflow-y-auto rounded-xl border border-border/70">
                   {projects === null && !error ? (
                     <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Reading your Odoo.sh account…
+                      <Loader2 className="h-4 w-4 animate-spin" /> Reading your {source} account…
                     </div>
                   ) : null}
                   {filtered.map((p) => {
@@ -232,7 +253,7 @@ export function ConnectOdooWizard({
                       ))}
                     </select>
                     {branches && stagingBranches.length === 0 ? (
-                      <span className="text-xs text-destructive">This project has no staging branch yet. Add one in Odoo.sh first.</span>
+                      <span className="text-xs text-destructive">This project has no staging branch yet. Add one in {source} first.</span>
                     ) : null}
                   </label>
                   <div className="flex flex-col gap-1.5 text-sm">
@@ -249,7 +270,7 @@ export function ConnectOdooWizard({
           {step === 2 ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">
-                The repository comes from Odoo.sh, so there is nothing to paste. Agents push only to the staging branch.
+                The repository comes from {source}, so there is nothing to paste. Agents push only to the staging branch.
               </p>
               <dl className="divide-y divide-border/60 rounded-xl border border-border/70 text-sm">
                 <Row label="Repository" value={selected?.repo ?? existing?.repo ?? "—"} icon={<GitBranch className="h-4 w-4" />} />
@@ -345,7 +366,7 @@ function Row({ label, value, icon }: { label: string; value: string; icon?: Reac
 
 
 /** Connect CICDoo once with an API token. The token goes straight to the server and is never shown again. */
-function CicdooConnect() {
+function CicdooConnect({ onReady }: { onReady: (ready: boolean) => void }) {
   const [status, setStatus] = React.useState<import("./api").CicdooStatus | null>(null);
   const [token, setToken] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -354,6 +375,10 @@ function CicdooConnect() {
   React.useEffect(() => {
     odooApi.cicdooStatus().then(setStatus).catch((e: Error) => setError(e.message));
   }, []);
+
+  React.useEffect(() => {
+    onReady(Boolean(status?.connected));
+  }, [status, onReady]);
 
   async function connect() {
     setBusy(true);
@@ -380,9 +405,7 @@ function CicdooConnect() {
           <p className="flex items-center gap-2 text-sm text-foreground">
             <CircleCheck className="h-4 w-4 text-emerald-600" /> CICDoo is connected.
           </p>
-          <p className="text-xs text-muted-foreground">
-            Picking CICDoo projects and staging instances here arrives in the next update.
-          </p>
+          <p className="text-xs text-muted-foreground">Continue to pick the project and its staging instance.</p>
         </>
       ) : (
         <>
