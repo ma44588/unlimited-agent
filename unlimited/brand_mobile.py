@@ -237,9 +237,11 @@ PATCHES = [
     ("lib/features/pairing/pairing_page/pairing_welcome_view.dart",
      "                          : 'Use pairing code',", "                          : 'Paste a pairing link',"),
     # Team, Projects and Outbox from the Unlimited server (no local agents on the phone).
-    ("lib/app.dart", "import 'features/agents/agents_page.dart';",
-     "import 'features/agents/agents_page.dart';\nimport 'features/unlimited/unlimited_hub_page.dart';"),
-    ("lib/app.dart", "              onAgents: showAgents,", "              onAgents: (c) => showUnlimitedHub(c),"),
+    ("lib/app.dart", "import 'features/channels/default_agent_launcher.dart';\nimport 'features/agents/agents_page.dart';",
+     "import 'features/unlimited/unlimited_hub_page.dart';"),
+    ("lib/app.dart", "              onAgents: showAgents,", "              onAgents: (c) => showUnlimitedHub(c, tab: 1),"),
+    ("lib/app.dart", "              defaultAgentBuilder: (context) => DefaultAgentLauncher(\n                onChooseAgent: () => showAgents(context),\n              ),",
+     "              defaultAgentBuilder: (context) => const UnlimitedTeamButton(),"),
     ("lib/features/home/home_page.dart", "            label: 'Agents',\n            symbol: 'person.2',",
      "            label: 'Team',\n            symbol: 'person.2',"),
     # Deep night palette for the app's dark mode, and dark by default.

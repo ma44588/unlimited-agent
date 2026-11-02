@@ -1,11 +1,14 @@
 // Unlimited Agent: Team, Projects and Outbox on the phone, from the same
 // server API as the desktop. Opened from the community menu ("Team").
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../shared/relay/relay_provider.dart';
+import '../../shared/widgets/navigation_button_surface.dart';
 import 'unlimited_api.dart';
 
 Future<void> showUnlimitedHub(BuildContext context, {int tab = 0}) =>
@@ -47,7 +50,7 @@ class UnlimitedHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return DefaultTabController(
-      length: 3,
+      length: 4,
       initialIndex: initialTab,
       child: Scaffold(
         appBar: AppBar(
@@ -70,6 +73,7 @@ class UnlimitedHubPage extends StatelessWidget {
               vertical: 6,
             ),
             tabs: const [
+              Tab(text: 'Inbox'),
               Tab(text: 'Team'),
               Tab(text: 'Projects'),
               Tab(text: 'Outbox'),
@@ -79,7 +83,7 @@ class UnlimitedHubPage extends StatelessWidget {
         body: const SafeArea(
           top: false,
           child: TabBarView(
-            children: [_TeamTab(), _ProjectsTab(), _OutboxTab()],
+            children: [_InboxTab(), _TeamTab(), _ProjectsTab(), _OutboxTab()],
           ),
         ),
       ),
@@ -1117,6 +1121,181 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------- Inbox (needs you)
+class _Pending {
+  _Pending(this.approvals, this.emails);
+  final List<(Project, Approval)> approvals;
+  final List<OutboxItem> emails;
+  int get count => approvals.length + emails.length;
+}
+
+Future<_Pending> _loadPending(UnlimitedApi api) async {
+  final results = await Future.wait([api.overview(), api.outbox()]);
+  final overview = results[0] as Overview;
+  final emails = results[1] as List<OutboxItem>;
+  final approvals = <(Project, Approval)>[];
+  if (overview.approvals > 0) {
+    final statuses = await Future.wait(
+      overview.projects.map((p) async {
+        try {
+          return (p, await api.projectStatus(p.id));
+        } catch (_) {
+          return (p, null);
+        }
+      }),
+    );
+    for (final (p, s) in statuses) {
+      for (final a in s?.approvals ?? const <Approval>[]) {
+        approvals.add((p, a));
+      }
+    }
+  }
+  return _Pending(approvals, emails);
+}
+
+class _InboxTab extends ConsumerWidget {
+  const _InboxTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _Loader<_Pending>(
+    load: _loadPending,
+    builder: (context, pending, reload) {
+      final scheme = Theme.of(context).colorScheme;
+      if (pending.count == 0) {
+        return const _Message(
+          icon: Icons.task_alt_rounded,
+          title: 'All clear',
+          text: 'Nothing waits for you. Plans, risky actions and emails that need your approval show up here.',
+        );
+      }
+      Future<void> decide(Approval a, bool ok) async {
+        final messenger = ScaffoldMessenger.of(context);
+        try {
+          await _api(ref).decideApproval(a.id, ok);
+          messenger.showSnackBar(
+            SnackBar(content: Text(ok ? 'Approved' : 'Rejected')),
+          );
+        } catch (e) {
+          messenger.showSnackBar(SnackBar(content: Text(e.toString())));
+        }
+        await reload();
+      }
+
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          Text(
+            pending.count == 1
+                ? '1 thing needs you'
+                : '${pending.count} things need you',
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+          ),
+          if (pending.approvals.isNotEmpty) ...[
+            const _SectionTitle('Approvals'),
+            for (final (p, a) in pending.approvals)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 4),
+                      child: Text(
+                        '# ${p.name}',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    _ApprovalCard(
+                      approval: a,
+                      onDecide: (ok) => unawaited(decide(a, ok)),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          if (pending.emails.isNotEmpty) ...[
+            const _SectionTitle('Emails to send'),
+            for (final m in pending.emails)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _OutboxCard(item: m, onChanged: reload),
+              ),
+          ],
+        ],
+      );
+    },
+  );
+}
+
+/// Bottom-bar button on Home: opens the Unlimited hub and shows how many
+/// things wait for the owner (approvals and emails). Replaces the on-phone
+/// agent launcher: the employees live on the server.
+class UnlimitedTeamButton extends ConsumerStatefulWidget {
+  const UnlimitedTeamButton({super.key});
+
+  @override
+  ConsumerState<UnlimitedTeamButton> createState() =>
+      _UnlimitedTeamButtonState();
+}
+
+class _UnlimitedTeamButtonState extends ConsumerState<UnlimitedTeamButton> {
+  int _count = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refresh());
+    _timer = Timer.periodic(const Duration(seconds: 90), (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final api = _api(ref);
+      final r = await Future.wait([api.overview(), api.outbox()]);
+      final n = (r[0] as Overview).approvals + (r[1] as List).length;
+      if (mounted && n != _count) setState(() => _count = n);
+    } catch (_) {
+      // Offline or not the owner: keep the button, hide the badge.
+      if (mounted && _count != 0) setState(() => _count = 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NavigationButtonSurface(
+      child: SizedBox.square(
+        dimension: 56,
+        child: IconButton(
+          tooltip: _count > 0 ? 'Team, $_count waiting for you' : 'Team',
+          padding: EdgeInsets.zero,
+          onPressed: () async {
+            unawaited(HapticFeedback.lightImpact());
+            await showUnlimitedHub(context, tab: _count > 0 ? 0 : 1);
+            unawaited(_refresh());
+          },
+          icon: Badge(
+            isLabelVisible: _count > 0,
+            backgroundColor: const Color(0xFF9A3367),
+            label: Text('$_count'),
+            child: const Icon(Icons.groups_rounded, size: 26),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------- Outbox
 class _OutboxTab extends StatelessWidget {
   const _OutboxTab();
@@ -1125,7 +1304,6 @@ class _OutboxTab extends StatelessWidget {
   Widget build(BuildContext context) => _Loader<List<OutboxItem>>(
     load: (api) => api.outbox(),
     builder: (context, items, reload) {
-      final scheme = Theme.of(context).colorScheme;
       if (items.isEmpty) {
         return const _Message(
           icon: Icons.outbox_rounded,
@@ -1139,60 +1317,66 @@ class _OutboxTab extends StatelessWidget {
           for (final m in items)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: _Card(
-                highlight: true,
-                onTap: () async {
-                  final changed = await showModalBottomSheet<bool>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    showDragHandle: true,
-                    builder: (_) => _OutboxSheet(item: m),
-                  );
-                  if (changed == true) await reload();
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const _Pill('Waits for you', _amber),
-                        const Spacer(),
-                        Text(
-                          m.agent,
-                          style: TextStyle(
-                            color: scheme.onSurfaceVariant,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      m.subject.isEmpty ? '(no subject)' : m.subject,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'To ${m.to.join(', ')}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: _OutboxCard(item: m, onChanged: reload),
             ),
         ],
       );
     },
   );
+}
+
+class _OutboxCard extends StatelessWidget {
+  const _OutboxCard({required this.item, required this.onChanged});
+  final OutboxItem item;
+  final Future<void> Function() onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return _Card(
+      highlight: true,
+      onTap: () async {
+        final changed = await showModalBottomSheet<bool>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          showDragHandle: true,
+          builder: (_) => _OutboxSheet(item: item),
+        );
+        if (changed == true) await onChanged();
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const _Pill('Waits for you', _amber),
+              const Spacer(),
+              Text(
+                item.agent,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.subject.isEmpty ? '(no subject)' : item.subject,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'To ${item.to.join(', ')}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _OutboxSheet extends ConsumerStatefulWidget {
