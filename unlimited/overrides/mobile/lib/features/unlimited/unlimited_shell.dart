@@ -9,7 +9,9 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 import '../../shared/relay/relay_provider.dart';
 import 'unlimited_api.dart';
-import 'unlimited_hub_page.dart';
+import 'ud.dart';
+import 'unlimited_hub_page.dart' show unlimitedPendingCount;
+import 'unlimited_screens.dart';
 
 const _brand = LinearGradient(
   begin: Alignment.topLeft,
@@ -76,11 +78,12 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
   }
 
   Widget _page(int i) => switch (i) {
-    0 => const _TabPage(title: 'Inbox', child: UnlimitedInboxView()),
+    0 => const UInboxScreen(),
     1 => widget.chats,
-    2 => const _TabPage(title: 'Projects', child: UnlimitedProjectsView()),
-    3 => const _TabPage(title: 'Team', child: UnlimitedTeamView()),
-    _ => _MorePage(
+    2 => const UProjectsScreen(),
+    3 => const UTeamScreen(),
+    _ => UMoreScreen(
+      pending: _pending,
       settingsPageBuilder: widget.settingsPageBuilder,
       appearancePageBuilder: widget.appearancePageBuilder,
       invitePageBuilder: widget.invitePageBuilder,
@@ -147,13 +150,10 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
     }
     return Scaffold(
       body: pages,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: _select,
-        height: 64,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        indicatorColor: const Color(0xFF7A4793).withValues(alpha: .18),
-        destinations: _destinations(_pending),
+      bottomNavigationBar: _UdTabBar(
+        selected: _tab,
+        pending: _pending,
+        onSelect: _select,
       ),
     );
   }
@@ -195,98 +195,77 @@ List<NavigationDestination> _destinations(int pending) {
   ];
 }
 
-class _TabPage extends StatelessWidget {
-  const _TabPage({required this.title, required this.child});
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 26,
-          letterSpacing: -.5,
-        ),
-      ),
-      centerTitle: false,
-    ),
-    body: child,
-  );
-}
-
-class _MorePage extends StatelessWidget {
-  const _MorePage({
-    required this.settingsPageBuilder,
-    this.appearancePageBuilder,
-    this.invitePageBuilder,
+class _UdTabBar extends StatelessWidget {
+  const _UdTabBar({
+    required this.selected,
+    required this.pending,
+    required this.onSelect,
   });
-  final WidgetBuilder settingsPageBuilder;
-  final WidgetBuilder? appearancePageBuilder;
-  final WidgetBuilder? invitePageBuilder;
+  final int selected;
+  final int pending;
+  final ValueChanged<int> onSelect;
+
+  static const _items = [
+    (Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox'),
+    (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Chats'),
+    (Icons.folder_outlined, Icons.folder_rounded, 'Projects'),
+    (Icons.groups_outlined, Icons.groups_rounded, 'Team'),
+    (Icons.menu_rounded, Icons.menu_open_rounded, 'More'),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    void open(WidgetBuilder b) =>
-        Navigator.of(context).push(MaterialPageRoute<void>(builder: b));
-    Widget tile(
-      IconData icon,
-      String title,
-      String subtitle,
-      VoidCallback onTap,
-    ) => ListTile(
-      leading: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: const Color(0xFF7A4793).withValues(alpha: .14),
-          borderRadius: BorderRadius.circular(11),
-        ),
-        child: Icon(icon, color: scheme.primary, size: 20),
+    final u = Ud.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: u.card.withValues(alpha: .92),
+        border: Border(top: BorderSide(color: u.line)),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
-      onTap: onTap,
-    );
-    return _TabPage(
-      title: 'More',
-      child: ListView(
-        padding: const EdgeInsets.only(top: 4, bottom: 24),
-        children: [
-          tile(
-            Icons.outbox_rounded,
-            'Outbox',
-            'Emails waiting for your approval',
-            () => open(
-              (_) =>
-                  const _TabPage(title: 'Outbox', child: UnlimitedOutboxView()),
-            ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              for (final (i, it) in _items.indexed)
+                Expanded(
+                  child: Semantics(
+                    selected: i == selected,
+                    button: true,
+                    label: it.$3,
+                    child: InkWell(
+                      onTap: () => onSelect(i),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Badge(
+                            isLabelVisible: i == 0 && pending > 0,
+                            backgroundColor: u.accent,
+                            textColor: u.onAccent,
+                            label: Text('$pending'),
+                            child: Icon(
+                              i == selected ? it.$2 : it.$1,
+                              size: 22,
+                              color: i == selected ? u.accent : u.muted,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            it.$3,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: i == selected ? u.accent : u.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          if (appearancePageBuilder != null)
-            tile(
-              Icons.palette_outlined,
-              'Appearance',
-              'Theme, light or dark, accent color',
-              () => open(appearancePageBuilder!),
-            ),
-          if (invitePageBuilder != null)
-            tile(
-              Icons.person_add_alt_1_rounded,
-              'Invite',
-              'Add a person to this workspace',
-              () => open(invitePageBuilder!),
-            ),
-          tile(
-            Icons.settings_outlined,
-            'Settings',
-            'Profile, notifications, security',
-            () => open(settingsPageBuilder),
-          ),
-        ],
+        ),
       ),
     );
   }

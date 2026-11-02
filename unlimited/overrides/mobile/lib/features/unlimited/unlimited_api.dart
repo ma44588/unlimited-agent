@@ -123,6 +123,8 @@ List<String> _list(Object? v) =>
 class Employee {
   Employee({
     required this.slug,
+    this.pubkey = '',
+    this.voiceLabel = '',
     required this.name,
     required this.person,
     required this.title,
@@ -144,6 +146,8 @@ class Employee {
     final mail = j['email'] is Map ? j['email'] as Map : const {};
     return Employee(
       slug: _s(j['slug']),
+      pubkey: _s(j['pubkey']),
+      voiceLabel: _s(j['voice']),
       name: _s(j['name']),
       person: _s(j['person']),
       title: _s(j['title']),
@@ -162,6 +166,8 @@ class Employee {
   }
 
   final String slug;
+  final String pubkey;
+  final String voiceLabel;
   final String name;
   final String person;
   final String title;
@@ -179,6 +185,7 @@ class Employee {
 
   String get displayName => person.isNotEmpty ? person : name;
   String get role => title.isNotEmpty ? title : name;
+
   String get group => department.isNotEmpty ? department : 'Team';
   bool get running => status == 'running' || status == 'up';
   String get initials {
