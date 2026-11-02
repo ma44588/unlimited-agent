@@ -214,8 +214,9 @@ PATCHES = [
     ("lib/shared/theme/buzz_theme.dart", "const _darkTop = Color(0xFF4A4616);", "const _darkTop = Color(0xFF26113A);"),
     ("lib/shared/theme/buzz_theme.dart", "const _darkBottom = Color(0xFF0A1423);", "const _darkBottom = Color(0xFF3A1430);"),
     # Accent: the desktop brand purple instead of neutral black.
+    # Unlimited theme: brand purple by default, but the accent the user picks in Appearance wins.
     ("lib/shared/theme/buzz_theme.dart", "  if (isBuzzTheme(themeName)) return neutralAccentIndex;",
-     "  if (isBuzzTheme(themeName)) return unlimitedAccentIndex;"),
+     "  if (isBuzzTheme(themeName)) {\n    return accentIndexForWireValue(storedAccent) ?? unlimitedAccentIndex;\n  }"),
     ("lib/shared/theme/accent_colors.dart", "\nconst accentColors = [\n",
      "\nconst accentColors = [\n  AccentColor(\n    name: 'Unlimited',\n    light: Color(0xFF7A4794),\n"
      "    dark: Color(0xFFC79FDB),\n    wireValue: '#7a4794',\n  ),\n"),
@@ -244,6 +245,15 @@ PATCHES = [
      "              defaultAgentBuilder: (context) => const UnlimitedTeamButton(),"),
     ("lib/features/home/home_page.dart", "            label: 'Agents',\n            symbol: 'person.2',",
      "            label: 'Team',\n            symbol: 'person.2',"),
+    # The approved phone layout: bottom tabs Inbox, Chats, Projects, Team, More.
+    ("lib/app.dart", "import 'features/unlimited/unlimited_hub_page.dart';",
+     "import 'features/unlimited/unlimited_hub_page.dart';\nimport 'features/unlimited/unlimited_shell.dart';"),
+    ("lib/app.dart", "            child: HomePage(\n",
+     "            child: UnlimitedShell(\n              settingsPageBuilder: _buildSettingsPage,\n"
+     "              appearancePageBuilder: (_) => const ThemePickerPage(),\n"
+     "              invitePageBuilder: (_) => const CommunityInvitePage(),\n              chats: HomePage(\n"),
+    ("lib/app.dart", "              communityAppearancePageBuilder: (_) => const ThemePickerPage(),\n            ),\n          ),\n",
+     "              communityAppearancePageBuilder: (_) => const ThemePickerPage(),\n            ),\n            ),\n          ),\n"),
     # Deep night palette for the app's dark mode, and dark by default.
     ("lib/shared/theme/theme_catalog.dart",
      "    name: 'buzz-dark',\n    bg: Color(0xFF24292E),\n    fg: Color(0xFFE1E4E8),\n    comment: Color(0xFF6A737D),",

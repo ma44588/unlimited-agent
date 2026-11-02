@@ -1487,3 +1487,34 @@ class _OutboxSheetState extends ConsumerState<_OutboxSheet> {
     );
   }
 }
+
+// ---------------------------------------------------------------- views for the bottom tabs
+class UnlimitedInboxView extends StatelessWidget {
+  const UnlimitedInboxView({super.key});
+  @override
+  Widget build(BuildContext context) => const _InboxTab();
+}
+
+class UnlimitedTeamView extends StatelessWidget {
+  const UnlimitedTeamView({super.key});
+  @override
+  Widget build(BuildContext context) => const _TeamTab();
+}
+
+class UnlimitedProjectsView extends StatelessWidget {
+  const UnlimitedProjectsView({super.key});
+  @override
+  Widget build(BuildContext context) => const _ProjectsTab();
+}
+
+class UnlimitedOutboxView extends StatelessWidget {
+  const UnlimitedOutboxView({super.key});
+  @override
+  Widget build(BuildContext context) => const _OutboxTab();
+}
+
+/// How many things wait for the owner (approvals + emails); 0 when offline.
+Future<int> unlimitedPendingCount(UnlimitedApi api) async {
+  final r = await Future.wait([api.overview(), api.outbox()]);
+  return (r[0] as Overview).approvals + (r[1] as List).length;
+}
