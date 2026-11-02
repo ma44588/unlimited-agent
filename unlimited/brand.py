@@ -153,6 +153,41 @@ PATCHES = [
      "        employee={serverEditOpen && serverEmployee ? serverEmployee : null}\n"
      "        onOpenChange={(o) => !o && setServerEditOpen(false)}\n      />\n    </AuxiliaryPanelBody>\n",
      "<ServerEmployeeSettingsDialog"),
+    # Calls: the normal huddle button in a DM with a server employee opens the live voice call.
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "ChannelMembersBar.tsx",
+     "  const huddleIndicator = (\n",
+     "  // Unlimited: a DM with a server employee calls it live.\n  const huddleIndicator = (\n",
+     "// Unlimited: a DM with a server employee calls it live."),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "ChannelMembersBar.tsx",
+     'import { AddChannelBotDialog } from "./AddChannelBotDialog";\n',
+     'import { AddChannelBotDialog } from "./AddChannelBotDialog";\n'
+     'import { callServerEmployee } from "@/features/unlimited/agents/callStore";\n',
+     'import { callServerEmployee } from "@/features/unlimited/agents/callStore";'),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "useProfileInteractionActions.ts",
+     'import { normalizePubkey, truncateNpub } from "@/shared/lib/pubkey";\n',
+     'import { normalizePubkey, truncateNpub } from "@/shared/lib/pubkey";\n'
+     'import { callServerEmployee } from "@/features/unlimited/agents/callStore";\n',
+     'import { callServerEmployee } from "@/features/unlimited/agents/callStore";'),
+    (DESKTOP / "src" / "app" / "AppShellOverlays.tsx",
+     'import * as React from "react";\n',
+     'import * as React from "react";\nimport { UnlimitedCallHost } from "@/features/unlimited/agents/callStore";\n',
+     'import { UnlimitedCallHost }'),
+    (DESKTOP / "src" / "app" / "AppShellOverlays.tsx",
+     "  return (\n    <>\n",
+     "  return (\n    <>\n      <UnlimitedCallHost />\n",
+     "<UnlimitedCallHost />"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "ChannelMembersBar.tsx",
+     "      onStart={async () => {\n        try {\n          await startHuddle(\n",
+     "      onStart={async () => {\n        try {\n"
+     "          if (channel.channelType === \"dm\" && (await callServerEmployee([...huddleMemberPubkeys]))) return;\n"
+     "          await startHuddle(\n",
+     "await callServerEmployee([...huddleMemberPubkeys])"),
+    (DESKTOP / "src" / "features" / "profile" / "ui" / "useProfileInteractionActions.ts",
+     "      await goChannel(dm.id);\n      await startHuddle(dm.id, isBot ? [targetPubkey] : []);\n",
+     "      await goChannel(dm.id);\n"
+     "      if (await callServerEmployee([targetPubkey])) {\n        if (isMountedRef.current) onClose();\n        return;\n      }\n"
+     "      await startHuddle(dm.id, isBot ? [targetPubkey] : []);\n",
+     "await callServerEmployee([targetPubkey])"),
     # Settings > Voice: paid voice for calls with employees.
     (DESKTOP / "src" / "features" / "settings" / "ui" / "VoiceSettingsCard.tsx",
      'import { SettingsSectionHeader } from "./SettingsSectionHeader";\n',
