@@ -221,12 +221,15 @@ class _UChatsScreenState extends ConsumerState<UChatsScreen> {
               .push(MaterialPageRoute<void>(builder: (_) => widget.classic)),
         ),
       ],
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+      body: Column(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+          // Pinned filters: they never scroll away or shift the list.
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
               children: [
                 for (final (i, l) in labels.indexed) ...[
                   if (i > 0) const SizedBox(width: 6),
@@ -239,8 +242,17 @@ class _UChatsScreenState extends ConsumerState<UChatsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          ...body,
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: ListView(
+                key: ValueKey(_seg),
+                physics: udScroll,
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+                children: body,
+              ),
+            ),
+          ),
         ],
       ),
     );

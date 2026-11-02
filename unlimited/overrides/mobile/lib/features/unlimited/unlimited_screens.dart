@@ -258,6 +258,7 @@ class UInboxScreen extends ConsumerWidget {
             ),
         ];
         return ListView(
+physics: udScroll,
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
           children: [
             if (needs.isEmpty && b.emails.isEmpty) ...[
@@ -325,6 +326,7 @@ class UProjectsScreen extends StatelessWidget {
           );
         }
         return ListView.separated(
+physics: udScroll,
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
           itemCount: b.overview.projects.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -569,6 +571,7 @@ class _UProjectScreenState extends ConsumerState<UProjectScreen> {
             );
           }
           return ListView(
+physics: udScroll,
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
             children: [
               Row(
@@ -654,6 +657,7 @@ class UTeamScreen extends StatelessWidget {
           groups.putIfAbsent(e.group, () => []).add(e);
         }
         return ListView(
+physics: udScroll,
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
           children: [
             for (final g in groups.entries) ...[
@@ -815,6 +819,7 @@ class _UEmployeeScreenState extends ConsumerState<UEmployeeScreen> {
       back: true,
       header: const SizedBox(),
       body: ListView(
+physics: udScroll,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
         children: [
           Center(
@@ -1058,6 +1063,7 @@ class UOutboxListScreen extends StatelessWidget {
           );
         }
         return ListView.separated(
+physics: udScroll,
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
           itemCount: b.emails.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -1170,6 +1176,7 @@ class _UOutboxScreenState extends ConsumerState<UOutboxScreen> {
         subtitle: 'From ${widget.from}',
       ),
       body: ListView(
+physics: udScroll,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
         children: [
           UdCard(
@@ -1263,6 +1270,7 @@ class UMoreScreen extends StatelessWidget {
     return UdPage(
       title: 'More',
       body: ListView(
+physics: udScroll,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
         children: [
           UdCard(

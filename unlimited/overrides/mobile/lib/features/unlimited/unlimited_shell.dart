@@ -27,7 +27,11 @@ class UnlimitedShell extends ConsumerStatefulWidget {
     required this.settingsPageBuilder,
     this.appearancePageBuilder,
     this.invitePageBuilder,
+    this.initialTab = 1,
   });
+
+  /// Chats first, like the desktop.
+  final int initialTab;
 
   final Widget chats;
   final WidgetBuilder settingsPageBuilder;
@@ -39,10 +43,10 @@ class UnlimitedShell extends ConsumerStatefulWidget {
 }
 
 class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
-  int _tab = 1; // Chats first, like the desktop.
+  late int _tab = widget.initialTab;
   int _pending = 0;
   Timer? _timer;
-  final _visited = <int>{1};
+  late final _visited = <int>{widget.initialTab};
 
   @override
   void initState() {
@@ -112,7 +116,7 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
                 selectedIndex: _tab,
                 onDestinationSelected: _select,
                 labelType: NavigationRailLabelType.all,
-                indicatorColor: const Color(0xFF7A4793).withValues(alpha: .18),
+                indicatorColor: Ud.of(context).accent.withValues(alpha: .18),
                 leading: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Container(

@@ -3,23 +3,49 @@
 // white cards, 18 px radius, brand purple accent).
 import 'package:flutter/material.dart';
 
+import '../../shared/theme/mobile_appearance.dart' show ChatColors;
+
 class Ud {
-  Ud._(this.dark);
+  Ud._(this.dark, this.accent, this.onAccent);
   final bool dark;
 
-  static Ud of(BuildContext context) =>
-      Ud._(Theme.of(context).brightness == Brightness.dark);
+  /// The color picked in Appearance (Unlimited purple by default). It paints
+  /// buttons, tabs and the page wash, so a new pick changes the whole app.
+  final Color accent;
+  final Color onAccent;
 
-  Color get bg1 => dark ? const Color(0xFF26113A) : const Color(0xFFEEE5F6);
-  Color get bg2 => dark ? const Color(0xFF3A1430) : const Color(0xFFF8E5EF);
+  static Ud of(BuildContext context) {
+    final t = Theme.of(context);
+    final chat = t.extension<ChatColors>();
+    final dark = t.brightness == Brightness.dark;
+    var accent = chat?.outgoing ?? t.colorScheme.primary;
+    var on = chat?.foreground ?? t.colorScheme.onPrimary;
+    if (accent.toARGB32() == 0xFF7A4794 || accent.toARGB32() == 0xFFC79FDB) {
+      accent = dark ? const Color(0xFFC79FDB) : const Color(0xFF7A4794);
+      on = dark ? const Color(0xFF2A1238) : Colors.white;
+    }
+    return Ud._(dark, accent, on);
+  }
+
+  static Color _mix(Color a, Color b, double t) => Color.lerp(a, b, t)!;
+  bool get _brand =>
+      accent.toARGB32() == 0xFF7A4794 || accent.toARGB32() == 0xFFC79FDB;
+
+  Color get bg1 => _brand
+      ? (dark ? const Color(0xFF26113A) : const Color(0xFFEEE5F6))
+      : (dark
+            ? _mix(const Color(0xFF141118), accent, .16)
+            : _mix(const Color(0xFFF5F4F7), accent, .11));
+  Color get bg2 => _brand
+      ? (dark ? const Color(0xFF3A1430) : const Color(0xFFF8E5EF))
+      : (dark
+            ? _mix(const Color(0xFF0F0D12), accent, .07)
+            : _mix(const Color(0xFFF7F6F8), accent, .04));
   Color get card => dark ? const Color(0xFF1F1A26) : Colors.white;
   Color get fg => dark ? const Color(0xFFEFEAF4) : const Color(0xFF1D1A22);
   Color get muted => dark ? const Color(0xFFA79FB2) : const Color(0xFF6B6475);
   Color get line => dark ? const Color(0xFF322A3C) : const Color(0xFFECE6F1);
-  Color get accent => dark ? const Color(0xFFC79FDB) : const Color(0xFF7A4794);
-  Color get onAccent => dark ? const Color(0xFF2A1238) : Colors.white;
-  Color get accentSoft =>
-      dark ? const Color(0xFF33263F) : const Color(0xFFF1E8F6);
+  Color get accentSoft => _mix(card, accent, dark ? .2 : .1);
   Color get chip => dark ? const Color(0xFF2A2333) : const Color(0xFFF4F0F7);
   static const ok = Color(0xFF16A34A);
   static const warn = Color(0xFFD97706);
@@ -59,6 +85,12 @@ String udInitials(String name) {
   if (parts.isEmpty) return '?';
   return parts.take(2).map((p) => p[0].toUpperCase()).join();
 }
+
+/// Pages stay put: no rubber-band bounce that drags the whole screen up
+/// and down; pull-to-refresh still works.
+const udScroll = ClampingScrollPhysics(
+  parent: AlwaysScrollableScrollPhysics(),
+);
 
 /// A page on the brand wash with the design's title row.
 class UdPage extends StatelessWidget {
@@ -575,6 +607,7 @@ class UdMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = Ud.of(context);
     return ListView(
+physics: udScroll,
       padding: const EdgeInsets.fromLTRB(32, 70, 32, 32),
       children: [
         Icon(icon, size: 40, color: u.muted),

@@ -228,6 +228,14 @@ PATCHES = [
      "const neutralAccentIndex = 1;\n\n/// Unlimited Agent brand purple (first entry).\nconst unlimitedAccentIndex = 0;"),
     ("lib/shared/theme/accent_colors.dart", "const defaultAccentIndex = neutralAccentIndex;",
      "const defaultAccentIndex = unlimitedAccentIndex;"),
+    # Appearance: Unlimited purple is the first and default color, and the
+    # picked color paints the whole app (see overrides .../unlimited/ud.dart).
+    ("lib/shared/theme/chat_colors.dart", "const chatColorChoices = [\n  AccentColor(\n    name: 'Gray',",
+     "const chatColorChoices = [\n  AccentColor(\n    name: 'Unlimited',\n    light: Color(0xFF7A4794),\n"
+     "    dark: Color(0xFFC79FDB),\n    wireValue: '#7a4794',\n  ),\n  AccentColor(\n    name: 'Gray',"),
+    ("lib/shared/theme/chat_colors.dart", "  return index < 0 ? 1 : index;", "  return index < 0 ? 0 : index;"),
+    ("lib/shared/theme/community_theme_preference.dart", "  accent: '#3b82f6', // Cobalt",
+     "  accent: '#7a4794', // Unlimited"),
     # Welcome hero: the landing page look (see overrides/mobile/lib/.../unlimited_hero.dart).
     ("lib/features/pairing/pairing_page.dart", "import 'pairing_page/onboarding_wordmark.dart';",
      "import 'pairing_page/unlimited_hero.dart';"),
