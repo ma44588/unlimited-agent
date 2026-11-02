@@ -14,7 +14,7 @@ import { Button } from "@/shared/ui/button";
 import { isDemo } from "../odoo/api";
 import { connectionsApi, type ConnItem, type ConnKind, type ConnState } from "./api";
 
-type TabKind = Exclude<ConnKind, "voice">;
+type TabKind = Exclude<ConnKind, "voice" | "company_odoo">;
 const META: Record<TabKind, { name: string; what: string; icon: React.ComponentType<{ className?: string }> }> = {
   github: { name: "GitHub", what: "Repositories the employees may push to (staging branches only)", icon: FolderGit2 },
   odoosh: { name: "Odoo.sh", what: "Projects, branches, builds and logs", icon: Cloud },
@@ -484,7 +484,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
   const byKind = new Map((items ?? []).map((x) => [x.kind, x]));
   const c: ConnItem = byKind.get(selected) ?? { kind: selected, state: "off", detail: items ? "Not connected" : "Loading…" };
   const meta = META[selected];
-  const connected = (items ?? []).filter((x) => x.kind !== "voice" && x.state === "connected").length;
+  const connected = (items ?? []).filter((x) => x.kind !== "voice" && x.kind !== "company_odoo" && x.state === "connected").length;
 
   return (
     <div className={cn("w-full", !embedded && "flex h-full min-h-0")} data-testid="connections-screen">

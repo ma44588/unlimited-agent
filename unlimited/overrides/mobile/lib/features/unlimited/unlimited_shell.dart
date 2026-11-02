@@ -12,6 +12,8 @@ import 'unlimited_api.dart';
 import 'ud.dart';
 import 'unlimited_hub_page.dart' show unlimitedPendingCount;
 import 'unlimited_chats.dart';
+import 'unlimited_org.dart';
+import 'unlimited_org_api.dart';
 import 'unlimited_screens.dart';
 
 const _brand = LinearGradient(
@@ -27,10 +29,10 @@ class UnlimitedShell extends ConsumerStatefulWidget {
     required this.settingsPageBuilder,
     this.appearancePageBuilder,
     this.invitePageBuilder,
-    this.initialTab = 1,
+    this.initialTab = 0,
   });
 
-  /// Chats first, like the desktop.
+  /// Today first: the day's plan and what needs the owner.
   final int initialTab;
 
   final Widget chats;
@@ -63,9 +65,14 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
 
   Future<void> _refresh() async {
     try {
-      final n = await unlimitedPendingCount(
-        UnlimitedApi(ref.read(relayConfigProvider)),
-      );
+      final api = UnlimitedApi(ref.read(relayConfigProvider));
+      final plansF = api
+          .today()
+          .then((t) => t.needs.length)
+          .catchError((Object _) => 0);
+      final n =
+          await unlimitedPendingCount(api).catchError((Object _) => 0) +
+          await plansF;
       if (mounted && n != _pending) setState(() => _pending = n);
     } catch (_) {
       if (mounted && _pending != 0) setState(() => _pending = 0);
@@ -83,10 +90,10 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
   }
 
   Widget _page(int i) => switch (i) {
-    0 => const UInboxScreen(),
+    0 => UTodayScreen(onOpenTeam: () => _select(3)),
     1 => UChatsScreen(classic: widget.chats),
     2 => const UProjectsScreen(),
-    3 => const UTeamScreen(),
+    3 => const UTeamHome(),
     _ => UMoreScreen(
       pending: _pending,
       settingsPageBuilder: widget.settingsPageBuilder,
@@ -173,9 +180,9 @@ List<NavigationDestination> _destinations(int pending) {
   );
   return [
     NavigationDestination(
-      icon: badge(const Icon(Icons.inbox_outlined), pending),
-      selectedIcon: badge(const Icon(Icons.inbox_rounded), pending),
-      label: 'Inbox',
+      icon: badge(const Icon(Icons.wb_sunny_outlined), pending),
+      selectedIcon: badge(const Icon(Icons.wb_sunny_rounded), pending),
+      label: 'Today',
     ),
     const NavigationDestination(
       icon: Icon(Icons.chat_bubble_outline_rounded),
@@ -211,7 +218,7 @@ class _UdTabBar extends StatelessWidget {
   final ValueChanged<int> onSelect;
 
   static const _items = [
-    (Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox'),
+    (Icons.wb_sunny_outlined, Icons.wb_sunny_rounded, 'Today'),
     (Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'Chats'),
     (Icons.folder_outlined, Icons.folder_rounded, 'Projects'),
     (Icons.groups_outlined, Icons.groups_rounded, 'Team'),

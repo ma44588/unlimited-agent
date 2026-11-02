@@ -7,6 +7,8 @@
  */
 import { signRelayEvent } from "@/shared/api/tauri";
 
+import { orgDemo } from "../org/demo";
+
 export const UNLIMITED_API = "https://app.unlimitedsolutions.technology/unlimited-api";
 
 export type OdooProject = {
@@ -292,6 +294,8 @@ function demoTaskStages() {
 
 async function demo<T>(method: string, path: string, body?: unknown): Promise<T> {
   await wait(350);
+  const org = orgDemo(method, path);
+  if (org !== undefined) return org as T;
   const pick = (p: string) => Object.values(demoState.projects).find((x) => x.id === p);
   let m: RegExpMatchArray | null;
   if (path === "/admin/overview")

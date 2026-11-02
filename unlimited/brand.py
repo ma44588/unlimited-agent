@@ -546,6 +546,24 @@ PATCHES = [
      '          <UsageSidebarEntry />\n',
      '          <UsageSidebarEntry />\n          <WorkspacesSidebarEntry />\n',
      "<WorkspacesSidebarEntry />"),
+    # Today and Team (the org chart and the daily plan): own pages, first in the sidebar group.
+    (DESKTOP / "src" / "app" / "routes.ts",
+     '  route("/workspaces", "workspaces.tsx"),\n',
+     '  route("/workspaces", "workspaces.tsx"),\n  route("/today", "today.tsx"),\n  route("/team", "team.tsx"),\n',
+     'route("/today"'),
+    (DESKTOP / "src" / "app" / "AppShell.helpers.ts",
+     'pathname === "/workspaces" || ',
+     'pathname === "/workspaces" || pathname === "/today" || pathname === "/team" || ',
+     'pathname === "/today"'),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     'import { UsageSidebarEntry } from "@/features/unlimited/usage/UsageSidebarEntry";\n',
+     'import { UsageSidebarEntry } from "@/features/unlimited/usage/UsageSidebarEntry";\n'
+     'import { TeamSidebarEntry, TodaySidebarEntry } from "@/features/unlimited/org/OrgSidebarEntries";\n',
+     "TodaySidebarEntry }"),
+    (DESKTOP / "src" / "features" / "sidebar" / "ui" / "AppSidebarPinnedHeader.tsx",
+     '          <UsageSidebarEntry />\n          <WorkspacesSidebarEntry />\n',
+     '          <TodaySidebarEntry />\n          <TeamSidebarEntry />\n          <UsageSidebarEntry />\n          <WorkspacesSidebarEntry />\n',
+     "<TodaySidebarEntry />"),
 ]
 
 
@@ -665,7 +683,7 @@ def brand_patches(check: bool) -> int:
 
 def brand_usage_route(check: bool) -> None:
     """Add our top-level pages to the generated route tree (mirrors the /agents entries)."""
-    for name in ("usage", "workspaces"):
+    for name in ("usage", "workspaces", "today", "team"):
         brand_route(name, check)
 
 

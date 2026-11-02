@@ -1,7 +1,7 @@
 /** Connections API (connector /admin/connections), signed with the owner's key like the other admin calls. */
 import { isDemo, request } from "../odoo/api";
 
-export type ConnKind = "github" | "odoosh" | "cicdoo" | "server" | "email" | "voice";
+export type ConnKind = "github" | "odoosh" | "cicdoo" | "server" | "email" | "voice" | "company_odoo";
 export type ConnState = "connected" | "attention" | "off";
 
 export type ConnItem = {

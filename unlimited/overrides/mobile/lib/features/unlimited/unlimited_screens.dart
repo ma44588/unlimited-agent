@@ -14,6 +14,7 @@ import '../channels/channel_management_provider.dart';
 import 'ud.dart';
 import 'unlimited_call_screen.dart';
 import 'unlimited_api.dart';
+import 'unlimited_org.dart';
 
 UnlimitedApi uApi(WidgetRef ref) => UnlimitedApi(ref.read(relayConfigProvider));
 
@@ -168,11 +169,13 @@ Widget _approveRow(
 
 // ---------------------------------------------------------------- Inbox
 class UInboxScreen extends ConsumerWidget {
-  const UInboxScreen({super.key});
+  const UInboxScreen({super.key, this.back = false});
+  final bool back;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => UdPage(
     title: 'Inbox',
+    back: back,
     body: ULoad<UBoard>(
       load: loadBoard,
       builder: (context, b, reload) {
@@ -643,7 +646,13 @@ class UTeamScreen extends StatelessWidget {
     title: 'Team',
     body: ULoad<List<Employee>>(
       load: (api) => api.employees(),
-      builder: (context, list, reload) {
+      builder: (context, list, reload) => uTeamList(context, list),
+    ),
+  );
+}
+
+/// The employees grouped by department (the Team tab's List view).
+Widget uTeamList(BuildContext context, List<Employee> list) {
         final u = Ud.of(context);
         if (list.isEmpty) {
           return const UdMessage(
@@ -720,9 +729,6 @@ physics: udScroll,
             ],
           ],
         );
-      },
-    ),
-  );
 }
 
 class UEmployeeScreen extends ConsumerStatefulWidget {
@@ -886,6 +892,7 @@ physics: udScroll,
               ),
             ],
           ),
+          UMemberDaySection(id: 'ai:${e.slug}'),
           const SizedBox(height: 12),
           UdCard(
             padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
@@ -1294,6 +1301,18 @@ physics: udScroll,
           ),
           const SizedBox(height: 10),
           group([
+            (
+              Icons.inbox_outlined,
+              'Inbox',
+              '',
+              () => open((_) => const UInboxScreen(back: true)),
+            ),
+            (
+              Icons.hub_outlined,
+              'Company Odoo',
+              '',
+              () => open((_) => const UCompanyOdooScreen()),
+            ),
             (
               Icons.outbox_outlined,
               'Outbox',
