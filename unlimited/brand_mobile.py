@@ -105,7 +105,53 @@ def app_icons() -> None:
                            check=True, capture_output=True)
 
 
+PATCHES = [
+    # Top-section gradient: Unlimited purple wash (desktop --buzz-gradient-* in unlimited/brand/theme.css).
+    ("lib/shared/theme/buzz_theme.dart", "const _lightTop = Color(0xFFE6E6B6);", "const _lightTop = Color(0xFFEEE5F6);"),
+    ("lib/shared/theme/buzz_theme.dart", "const _lightBottom = Color(0xFFC4D0DA);", "const _lightBottom = Color(0xFFF8E5EF);"),
+    ("lib/shared/theme/buzz_theme.dart", "const _darkTop = Color(0xFF4A4616);", "const _darkTop = Color(0xFF26113A);"),
+    ("lib/shared/theme/buzz_theme.dart", "const _darkBottom = Color(0xFF0A1423);", "const _darkBottom = Color(0xFF3A1430);"),
+    # Accent: the desktop brand purple instead of neutral black.
+    ("lib/shared/theme/buzz_theme.dart", "  if (isBuzzTheme(themeName)) return neutralAccentIndex;",
+     "  if (isBuzzTheme(themeName)) return unlimitedAccentIndex;"),
+    ("lib/shared/theme/accent_colors.dart", "\nconst accentColors = [\n",
+     "\nconst accentColors = [\n  AccentColor(\n    name: 'Unlimited',\n    light: Color(0xFF7A4794),\n"
+     "    dark: Color(0xFFC79FDB),\n    wireValue: '#7a4794',\n  ),\n"),
+    ("lib/shared/theme/accent_colors.dart", "const neutralAccentIndex = 0;",
+     "const neutralAccentIndex = 1;\n\n/// Unlimited Agent brand purple (first entry).\nconst unlimitedAccentIndex = 0;"),
+    ("lib/shared/theme/accent_colors.dart", "const defaultAccentIndex = neutralAccentIndex;",
+     "const defaultAccentIndex = unlimitedAccentIndex;"),
+    # Onboarding ink and buttons in brand purple.
+    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
+     "_onboardingIsDark ? const Color(0xFFE6EDF0) : const Color(0xFF111111);",
+     "_onboardingIsDark ? const Color(0xFFE9DDF3) : const Color(0xFF421C63);"),
+    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
+     "_onboardingIsDark ? const Color(0xFFAAB8C0) : const Color(0xB3111111);",
+     "_onboardingIsDark ? const Color(0xFFB9A8C8) : const Color(0xB3421C63);"),
+    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
+     "_onboardingIsDark ? const Color(0xFF172229) : const Color(0xFFD7E6F0);",
+     "_onboardingIsDark ? const Color(0xFF251038) : const Color(0xFFFFFFFF);"),
+    ("lib/features/pairing/pairing_page/onboarding_colors.dart",
+     "? const Color(0xFF233039)", "? const Color(0xFF2A2333)"),
+]
+
+
+def patches() -> int:
+    n = 0
+    for rel, old, new in PATCHES:
+        p = MOBILE / rel
+        t = p.read_text()
+        if new in t:
+            continue
+        if old not in t:
+            raise SystemExit(f"brand_mobile: anchor missing in {rel}: {old[:50]}")
+        p.write_text(t.replace(old, new, 1))
+        n += 1
+    return n
+
+
 def main() -> None:
+    print(f"mobile: {patches()} theme patches")
     xcconfig()
     info_plist()
     artwork()
