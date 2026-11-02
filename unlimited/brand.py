@@ -156,13 +156,17 @@ PATCHES = [
     # Calls: the normal huddle button in a DM with a server employee opens the live voice call.
     (DESKTOP / "src" / "features" / "channels" / "ui" / "ChannelMembersBar.tsx",
      "  const huddleIndicator = (\n",
-     "  // Unlimited: a DM with a server employee calls it live.\n  const huddleIndicator = (\n",
+     "  // Unlimited: a DM with a server employee calls it live.\n"
+     "  const unlimitedEmployee = useServerEmployeeIn(channel.channelType === \"dm\" ? channel.participantPubkeys : NO_PUBKEYS);\n"
+     "  const huddleIndicator = unlimitedEmployee && variant !== \"compact\" ? (\n"
+     "    <UnlimitedCallButton employee={unlimitedEmployee} />\n  ) : (\n",
      "// Unlimited: a DM with a server employee calls it live."),
     (DESKTOP / "src" / "features" / "channels" / "ui" / "ChannelMembersBar.tsx",
      'import { AddChannelBotDialog } from "./AddChannelBotDialog";\n',
      'import { AddChannelBotDialog } from "./AddChannelBotDialog";\n'
-     'import { callServerEmployee } from "@/features/unlimited/agents/callStore";\n',
-     'import { callServerEmployee } from "@/features/unlimited/agents/callStore";'),
+     'import { callServerEmployee, UnlimitedCallButton, useServerEmployeeIn } from "@/features/unlimited/agents/callStore";\n'
+     'const NO_PUBKEYS: string[] = [];\n',
+     'import { callServerEmployee, UnlimitedCallButton, useServerEmployeeIn }'),
     (DESKTOP / "src" / "features" / "profile" / "ui" / "useProfileInteractionActions.ts",
      'import { normalizePubkey, truncateNpub } from "@/shared/lib/pubkey";\n',
      'import { normalizePubkey, truncateNpub } from "@/shared/lib/pubkey";\n'
