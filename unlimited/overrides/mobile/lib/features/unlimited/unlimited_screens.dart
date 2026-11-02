@@ -99,9 +99,10 @@ class UBoard {
 }
 
 Future<UBoard> loadBoard(UnlimitedApi api) async {
-  final overview = await api.overview();
-  final emails = await api.outbox().catchError((_) => <OutboxItem>[]);
-  final employees = await api.employees().catchError((_) => <Employee>[]);
+  final overviewF = api.overview();
+  final emailsF = api.outbox().catchError((_) => <OutboxItem>[]);
+  final employeesF = api.employees().catchError((_) => <Employee>[]);
+  final overview = await overviewF;
   final statuses = <String, ProjectStatus>{};
   await Future.wait(
     overview.projects.map((p) async {
@@ -110,8 +111,14 @@ Future<UBoard> loadBoard(UnlimitedApi api) async {
       } catch (_) {}
     }),
   );
-  return UBoard(overview, statuses, emails, employees);
+  return UBoard(overview, statuses, await emailsF, await employeesF);
 }
+
+/// Real work by the employees, not the server's own admin bookkeeping.
+bool isEmployeeActivity(ActivityItem a) =>
+    !a.agent.startsWith('owner:') &&
+    !a.tool.startsWith('admin/') &&
+    a.agent != 'owner';
 
 Future<void> _decide(
   BuildContext context,
@@ -215,7 +222,7 @@ class UInboxScreen extends ConsumerWidget {
           for (final p in b.overview.projects)
             for (final a
                 in b.statuses[p.id]?.activity ?? const <ActivityItem>[])
-              (p, a),
+              if (isEmployeeActivity(a)) (p, a),
         ]..sort((x, y) => y.$2.ts.compareTo(x.$2.ts));
         final recent = activity.take(8).toList();
         final rows = <Widget>[
@@ -414,10 +421,11 @@ class _UProjectScreenState extends ConsumerState<UProjectScreen> {
         subtitle: '${p.provider} · Odoo ${p.version}',
       ),
       body: ULoad<(ProjectStatus, List<Employee>)>(
-        load: (api) async => (
-          await api.projectStatus(p.id),
-          await api.employees().catchError((_) => <Employee>[]),
-        ),
+        load: (api) async {
+          final teamF = api.employees().catchError((_) => <Employee>[]);
+          final status = await api.projectStatus(p.id);
+          return (status, await teamF);
+        },
         builder: (context, data, reload) {
           final (s, team) = data;
           String who(String agent) =>
@@ -532,14 +540,17 @@ class _UProjectScreenState extends ConsumerState<UProjectScreen> {
             children.add(
               UdCard(
                 padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-                child: s.activity.isEmpty
+                child: s.activity.where(isEmployeeActivity).isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(10),
                         child: Text('Nothing yet.', style: u.sub),
                       )
                     : Column(
                         children: _lastless([
-                          for (final a in s.activity.reversed.take(40))
+                          for (final a
+                              in s.activity.reversed
+                                  .where(isEmployeeActivity)
+                                  .take(40))
                             UdItem(
                               leading: UdAvatar(
                                 name: who(a.agent),

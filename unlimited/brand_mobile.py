@@ -154,10 +154,14 @@ HERO_NEW = """                    child: Semantics(
                               ): revealOptions,
                             }
                           : null,
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: Grid.xxs),
-                        child: UnlimitedHero(key: Key('pairing-buzz-wordmark')),
-                      ),
+                      child: connectionLanding
+                          ? const Padding(
+                              padding: EdgeInsets.only(top: Grid.xxs),
+                              child: UnlimitedHero(key: Key('pairing-buzz-wordmark')),
+                            )
+                          : const Center(
+                              child: UnlimitedMark(key: Key('pairing-buzz-wordmark'), size: 72),
+                            ),
                     ),"""
 ACTIONS_OLD = """    List<Widget> connectionActions() => [
       const SizedBox(height: Grid.xxs),

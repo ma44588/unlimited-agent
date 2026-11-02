@@ -11,6 +11,7 @@ import '../../shared/relay/relay_provider.dart';
 import 'unlimited_api.dart';
 import 'ud.dart';
 import 'unlimited_hub_page.dart' show unlimitedPendingCount;
+import 'unlimited_chats.dart';
 import 'unlimited_screens.dart';
 
 const _brand = LinearGradient(
@@ -79,7 +80,7 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
 
   Widget _page(int i) => switch (i) {
     0 => const UInboxScreen(),
-    1 => widget.chats,
+    1 => UChatsScreen(classic: widget.chats),
     2 => const UProjectsScreen(),
     3 => const UTeamScreen(),
     _ => UMoreScreen(
