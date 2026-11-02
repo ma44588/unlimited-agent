@@ -236,6 +236,12 @@ PATCHES = [
      "                        : const Text('Scan the QR on your computer'),\n                  ),\n                  const SizedBox(height: Grid.xxs),"),
     ("lib/features/pairing/pairing_page/pairing_welcome_view.dart",
      "                          : 'Use pairing code',", "                          : 'Paste a pairing link',"),
+    # Team, Projects and Outbox from the Unlimited server (no local agents on the phone).
+    ("lib/app.dart", "import 'features/agents/agents_page.dart';",
+     "import 'features/agents/agents_page.dart';\nimport 'features/unlimited/unlimited_hub_page.dart';"),
+    ("lib/app.dart", "              onAgents: showAgents,", "              onAgents: (c) => showUnlimitedHub(c),"),
+    ("lib/features/home/home_page.dart", "            label: 'Agents',\n            symbol: 'person.2',",
+     "            label: 'Team',\n            symbol: 'person.2',"),
     # Deep night palette for the app's dark mode, and dark by default.
     ("lib/shared/theme/theme_catalog.dart",
      "    name: 'buzz-dark',\n    bg: Color(0xFF24292E),\n    fg: Color(0xFFE1E4E8),\n    comment: Color(0xFF6A737D),",
