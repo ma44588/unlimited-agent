@@ -5,7 +5,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, CircleAlert, CircleCheck, Cloud, Copy, FolderGit2, KeyRound, Link2, Loader2, Plug, RefreshCw, Server, ShieldCheck } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, Cloud, Copy, FolderGit2, KeyRound, Link2, Loader2, Mail, Plug, RefreshCw, Server, ShieldCheck } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/shared/lib/cn";
@@ -14,13 +14,15 @@ import { Button } from "@/shared/ui/button";
 import { isDemo } from "../odoo/api";
 import { connectionsApi, type ConnItem, type ConnKind, type ConnState } from "./api";
 
-const META: Record<ConnKind, { name: string; what: string; icon: React.ComponentType<{ className?: string }> }> = {
+type TabKind = Exclude<ConnKind, "voice">;
+const META: Record<TabKind, { name: string; what: string; icon: React.ComponentType<{ className?: string }> }> = {
   github: { name: "GitHub", what: "Repositories the employees may push to (staging branches only)", icon: FolderGit2 },
   odoosh: { name: "Odoo.sh", what: "Projects, branches, builds and logs", icon: Cloud },
   cicdoo: { name: "CICDoo", what: "Your own servers managed on CICDoo", icon: Plug },
   server: { name: "Own server", what: "A staging server you run yourself, reached over SSH", icon: Server },
+  email: { name: "Email", what: "The team mailbox the employees read and write from (you approve every send)", icon: Mail },
 };
-const ORDER: ConnKind[] = ["github", "odoosh", "cicdoo", "server"];
+const ORDER: TabKind[] = ["github", "odoosh", "cicdoo", "server", "email"];
 
 const STATE: Record<ConnState, { label: string; tone: string; dot: string }> = {
   connected: { label: "Connected", tone: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
@@ -359,9 +361,93 @@ function ServerPanel({ c, run, busy }: PanelProps) {
   );
 }
 
+// ------------------------------------------------------------------ Email
+function EmailPanel({ c, run, busy }: PanelProps) {
+  const [f, setF] = React.useState({ address: c.address ?? "", display_name: c.display_name ?? "Unlimited Solutions", password: "" });
+  const save = () =>
+    run("email", async () => {
+      const r = await connectionsApi.save("email", { ...f, address: f.address.trim() });
+      setF((x) => ({ ...x, password: "" }));
+      return r;
+    });
+  const domain = (f.address.split("@")[1] || "yourdomain.com").trim();
+  return (
+    <div className="space-y-4">
+      <Section
+        action={
+          c.state !== "off" ? (
+            <Button
+              className="h-8 text-xs"
+              disabled={busy === "email"}
+              onClick={() => void run("email", () => connectionsApi.disconnect("email"))}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Disconnect
+            </Button>
+          ) : undefined
+        }
+        hint="The password is stored encrypted on the server and never shown again. The employees never see it."
+        title={c.state === "off" ? "Connect the team mailbox" : "Team mailbox"}
+      >
+        <Steps
+          items={[
+            <>In Hostinger, create one mailbox for the team, for example <b>team@{domain}</b>. Don't use your personal mailbox.</>,
+            <>Enter its address and password here, then press <b>Test and save</b>.</>,
+            <>
+              Add an <b>alias</b> for each employee that points to this mailbox (for example omar@{domain}), and put the alias in the
+              employee's profile. Mail to the alias arrives here.
+            </>,
+          ]}
+        />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Mailbox address
+            <input className={field} onChange={(e) => setF({ ...f, address: e.target.value })} placeholder={`team@${domain}`} value={f.address} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Sender name
+            <input className={field} onChange={(e) => setF({ ...f, display_name: e.target.value })} placeholder="Unlimited Solutions" value={f.display_name} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground sm:col-span-2">
+            Password {c.state !== "off" ? <span className="text-muted-foreground/70">(leave empty to keep the saved one)</span> : null}
+            <input
+              autoComplete="new-password"
+              className={field}
+              onChange={(e) => setF({ ...f, password: e.target.value })}
+              placeholder="Mailbox password"
+              type="password"
+              value={f.password}
+            />
+          </label>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Server: {c.imap_host ?? "imap.hostinger.com"} (reading) and {c.smtp_host ?? "smtp.hostinger.com"} (sending).
+        </p>
+        <div className="mt-4 flex justify-end">
+          <Button
+            className="h-8 gap-1.5 text-xs"
+            disabled={!f.address.trim() || (c.state === "off" && !f.password) || busy === "email"}
+            onClick={() => void save()}
+            size="sm"
+            type="button"
+          >
+            <Spin icon={<Mail className="h-3.5 w-3.5" />} on={busy === "email"} /> Test and save
+          </Button>
+        </div>
+      </Section>
+      {c.state === "attention" ? <Note tone="warn">{c.detail}</Note> : null}
+      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+        <ShieldCheck className="h-3.5 w-3.5" /> Employees can read and draft. Nothing is sent until you approve it in the Outbox.
+      </p>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ screen
 export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) {
-  const [selected, setSelected] = React.useState<ConnKind>("github");
+  const [selected, setSelected] = React.useState<TabKind>("github");
   const [items, setItems] = React.useState<ConnItem[] | null>(null);
   const [busy, setBusy] = React.useState("");
   const [error, setError] = React.useState("");
@@ -398,7 +484,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
   const byKind = new Map((items ?? []).map((x) => [x.kind, x]));
   const c: ConnItem = byKind.get(selected) ?? { kind: selected, state: "off", detail: items ? "Not connected" : "Loading…" };
   const meta = META[selected];
-  const connected = (items ?? []).filter((x) => x.state === "connected").length;
+  const connected = (items ?? []).filter((x) => x.kind !== "voice" && x.state === "connected").length;
 
   return (
     <div className={cn("w-full", !embedded && "flex h-full min-h-0")} data-testid="connections-screen">
@@ -417,7 +503,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
 
         <nav
           aria-label="Connections"
-          className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-border/60 bg-muted/40 p-1 md:grid-cols-4"
+          className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-border/60 bg-muted/40 p-1 md:grid-cols-5"
           role="tablist"
         >
           {ORDER.map((kind) => {
@@ -476,7 +562,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
               <Button
                 className="h-8 gap-1.5 text-xs"
                 disabled={busy !== ""}
-                onClick={() => void run("check", () => (selected === "odoosh" ? connectionsApi.check("odoosh") : connectionsApi.overview()))}
+                onClick={() => void run("check", () => (selected === "odoosh" || selected === "email" ? connectionsApi.check(selected) : connectionsApi.overview()))}
                 size="sm"
                 type="button"
                 variant="outline"
@@ -504,6 +590,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
               {selected === "odoosh" ? <OdooShPanel busy={busy} c={c} run={run} /> : null}
               {selected === "cicdoo" ? <CicdooPanel busy={busy} c={c} run={run} /> : null}
               {selected === "server" ? <ServerPanel busy={busy} c={c} key={c.server?.host ?? "new"} run={run} /> : null}
+              {selected === "email" ? <EmailPanel busy={busy} c={c} key={c.address ?? "new"} run={run} /> : null}
             </>
           ) : null}
           <p className="flex items-start gap-2 px-1 text-xs text-muted-foreground">
