@@ -99,6 +99,15 @@ PROJECTS_UI = DESKTOP / "src" / "features" / "projects" / "ui"
 # (file, anchor, replacement, marker) — each anchor must exist exactly once, so an upstream change
 # that moves it fails the build loudly instead of silently dropping the tab.
 PATCHES = [
+    # Odoo.sh sign-in inside the app (Settings > Connections): register the Rust command.
+    (DESKTOP / "src-tauri" / "src" / "lib.rs",
+     "mod app_menu;\n",
+     "mod app_menu;\nmod unlimited_odoosh;\n",
+     "mod unlimited_odoosh;"),
+    (DESKTOP / "src-tauri" / "src" / "lib.rs",
+     "        .invoke_handler(tauri::generate_handler![\n",
+     "        .invoke_handler(tauri::generate_handler![\n            unlimited_odoosh::unlimited_odoosh_signin,\n",
+     "unlimited_odoosh::unlimited_odoosh_signin"),
     (PROJECTS_UI / "ProjectWorkspaceTabList.tsx",
      '        <TabsTrigger className={PROJECT_TAB_TRIGGER_CLASS} value="contributors">\n'
      '          <ProjectTabLabel>Contributors</ProjectTabLabel>\n'

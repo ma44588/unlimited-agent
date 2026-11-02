@@ -3,6 +3,7 @@
  * server. Live data from the connector (/admin/connections). Secrets are sent once, stored encrypted on the
  * server for this workspace only, and never shown again.
  */
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Check, CircleAlert, CircleCheck, Cloud, Copy, FolderGit2, KeyRound, Link2, Loader2, Plug, RefreshCw, Server, ShieldCheck } from "lucide-react";
 import * as React from "react";
@@ -10,6 +11,7 @@ import * as React from "react";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 
+import { isDemo } from "../odoo/api";
 import { connectionsApi, type ConnItem, type ConnKind, type ConnState } from "./api";
 
 const META: Record<ConnKind, { name: string; what: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -195,19 +197,30 @@ function OdooShPanel({ c, run, busy }: PanelProps) {
       setSession("");
       return r;
     });
+  const signIn = () =>
+    run("odoosh", async () => {
+      const value = isDemo() ? "" : await invoke<string>("unlimited_odoosh_signin");
+      return value ? connectionsApi.save("odoosh", { session: value }) : connectionsApi.overview();
+    });
   return (
     <div className="space-y-4">
       <Section
-        hint="Stored on the server for this workspace only and never shown again"
-        title={c.state === "connected" ? "Replace the Odoo.sh session" : "Connect your Odoo.sh session"}
+        hint="Your password goes only to Odoo. The session is stored on the server for this workspace and never shown again."
+        title={c.state === "connected" ? "Sign in to Odoo.sh again" : "Sign in to Odoo.sh"}
       >
         <Steps
           items={[
-            <>Sign in to <b>odoo.sh</b> in your browser.</>,
-            <>Copy the value of the <b>session_id</b> cookie and paste it below.</>,
+            <>Press <b>Sign in to Odoo.sh</b>. The real odoo.sh sign-in page opens in a small window.</>,
+            <>Sign in as usual. When your projects appear, the window closes by itself and Odoo.sh shows as connected.</>,
           ]}
         />
-        <div className="mt-3 flex gap-2">
+        <div className="mt-4 flex justify-end">
+          <Button className="h-9 gap-1.5 text-xs" disabled={busy === "odoosh"} onClick={() => void signIn()} size="sm" type="button">
+            <Spin icon={<Cloud className="h-3.5 w-3.5" />} on={busy === "odoosh"} /> Sign in to Odoo.sh
+          </Button>
+        </div>
+        <p className="mt-4 border-t border-border/50 pt-3 text-xs text-muted-foreground">Or paste the session_id cookie yourself:</p>
+        <div className="mt-2 flex gap-2">
           <input
             autoComplete="off"
             className={field}
@@ -221,11 +234,11 @@ function OdooShPanel({ c, run, busy }: PanelProps) {
           </Button>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Odoo.sh renews the session while it is in use, and the server keeps the renewed one. You only paste again after you sign out of
+          Odoo.sh renews the session while it is in use, and the server keeps the renewed one. You only sign in again after you sign out of
           Odoo.sh or change your password.
         </p>
       </Section>
-      {c.state === "attention" ? <Note tone="warn">{c.detail}. Paste a new session to renew it.</Note> : null}
+      {c.state === "attention" ? <Note tone="warn">{c.detail}. Press Sign in to Odoo.sh to renew it.</Note> : null}
     </div>
   );
 }
