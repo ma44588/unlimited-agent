@@ -318,7 +318,7 @@ export function ConnectOdooWizard({
             <section className="flex flex-col gap-3 rounded-xl border border-border/70 bg-muted/30 p-4">
               <h3 className="text-sm font-semibold">Automatic setup</h3>
               <ul className="flex flex-col gap-2.5 text-sm">
-                {(checks ?? Object.keys(CHECK_LABEL).map((key) => ({ key, ok: false, detail: null }))).map((s) => (
+                {(checks ?? Object.keys(CHECK_LABEL).map((key): CheckStep => ({ key, ok: false, detail: null }))).map((s) => (
                   <li className="flex items-center gap-2.5" key={s.key}>
                     {checks === null ? (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
