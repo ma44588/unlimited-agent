@@ -5,7 +5,7 @@
  */
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AtSign, MessageSquare, Mic, Plus, Send, Server, Settings2 } from "lucide-react";
+import { AtSign, MessageSquare, Mic, Phone, Plus, Send, Server, Settings2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ import { odooApi, type ServerEmployee } from "@/features/unlimited/odoo/api";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { UserAvatar } from "@/shared/ui/UserAvatar";
+import { EmployeeCallDialog } from "./EmployeeCallDialog";
 import { NewServerEmployeeDialog, ServerEmployeeSettingsDialog } from "./ServerEmployeeDialogs";
 
 function StatusPill({ status }: { status: string }) {
@@ -61,6 +62,7 @@ export function ServerAgentsSection() {
   const [opening, setOpening] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState<ServerEmployee | null>(null);
+  const [calling, setCalling] = React.useState<ServerEmployee | null>(null);
   const query = useQuery({
     queryKey: ["unlimited", "server-agents"],
     queryFn: () => odooApi.serverAgents(),
@@ -133,6 +135,14 @@ export function ServerAgentsSection() {
                     <Button disabled={opening !== null} onClick={() => void message(agent.pubkey)} size="sm" variant="outline">
                       <MessageSquare /> Message
                     </Button>
+                    <Button
+                      className="bg-gradient-to-br from-[#7A4793] to-[#9A3367] text-white hover:opacity-90"
+                      disabled={agent.status !== "running"}
+                      onClick={() => setCalling(agent)}
+                      size="sm"
+                    >
+                      <Phone /> Call
+                    </Button>
                     <Button onClick={() => setEditing(agent)} size="sm" variant="ghost">
                       <Settings2 /> Profile
                     </Button>
@@ -157,6 +167,7 @@ export function ServerAgentsSection() {
       )}
       <NewServerEmployeeDialog onOpenChange={setCreating} open={creating} />
       <ServerEmployeeSettingsDialog employee={editing} onOpenChange={(o) => !o && setEditing(null)} />
+      <EmployeeCallDialog employee={calling} onClose={() => setCalling(null)} />
     </section>
   );
 }

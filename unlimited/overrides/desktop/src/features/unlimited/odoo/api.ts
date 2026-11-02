@@ -202,6 +202,12 @@ export const odooApi = {
     request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}`, input),
   serverAgentAction: (slug: string, input: { do: "start" | "stop" | "restart" | "delete" | "memory_delete"; file?: string }) =>
     request<{ slug: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, input),
+  callConnect: (slug: string, sdp: string) =>
+    request<{ sdp: string; employee: string; voice: string }>("POST", `/admin/calls/${encodeURIComponent(slug)}/connect`, { sdp }),
+  callHandoff: (slug: string, input: { brief: string; project?: string }) =>
+    request<{ ok: boolean }>("POST", `/admin/calls/${encodeURIComponent(slug)}/handoff`, input),
+  callNotes: (slug: string, lines: { who: "you" | "them"; text: string }[]) =>
+    request<{ ok: boolean }>("POST", `/admin/calls/${encodeURIComponent(slug)}/notes`, { lines }),
   serverAgentTelegram: (slug: string, input: { token: string } | { disconnect: true }) =>
     request<{ bot?: string; paired?: boolean; pair_link?: string | null }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/telegram`, input),
   serverAgentLogs: (slug: string, lines = 400) =>
