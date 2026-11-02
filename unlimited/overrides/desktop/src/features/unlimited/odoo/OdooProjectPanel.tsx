@@ -182,7 +182,7 @@ function ConnectedDashboard({ project, onManage }: { project: OdooProject; onMan
         <div className="flex min-w-0 flex-1 flex-col">
           <h2 className="truncate text-base font-semibold">{project.name}</h2>
           <span className="text-xs text-muted-foreground">
-            Odoo {project.odoo_version || "—"} · Odoo.sh · {project.repo}
+            Odoo {project.odoo_version || "—"} · {project.provider === "cicdoo" ? "CICDoo" : "Odoo.sh"} · {project.repo}
           </span>
         </div>
         {build?.url ? (
@@ -266,8 +266,14 @@ function ConnectedDashboard({ project, onManage }: { project: OdooProject; onMan
             <Detail label="Locked" value={[...new Set([...project.locked_branches, "main", "master"])].join(", ")} icon={<Lock className="h-3.5 w-3.5" />} />
           </Card>
           <Card onManage={onManage} title="Odoo">
-            <Detail label="Odoo.sh project" value={project.odoosh_project} />
-            <Detail label="Staging build" value={build?.build_id ? `#${build.build_id}` : "—"} />
+            {project.provider === "cicdoo" ? (
+              <Detail label="Staging instance" value={project.odoo_url ? project.odoo_url.replace(/^https?:\/\//, "") : "—"} />
+            ) : (
+              <>
+                <Detail label="Odoo.sh project" value={project.odoosh_project} />
+                <Detail label="Staging build" value={build?.build_id ? `#${build.build_id}` : "—"} />
+              </>
+            )}
             <Detail label="Agent user" value={project.agent_login} />
             <Detail label="Database" value="Read-only queries" />
           </Card>

@@ -12,6 +12,7 @@ export const UNLIMITED_API = "https://app.unlimitedsolutions.technology/unlimite
 export type OdooProject = {
   id: string;
   provider?: string;
+  odoo_url?: string;
   name: string;
   repo: string;
   branch: string;
