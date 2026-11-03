@@ -7,6 +7,8 @@ import * as React from "react";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 
+import { type Org, orgApi } from "../org/api";
+import { OrgAvatar } from "../org/ui";
 import { ApiError, type HealthReport, type OdooProject, type ProjectStatus, odooApi } from "./api";
 import { ConnectOdooWizard } from "./ConnectOdooWizard";
 
@@ -41,6 +43,7 @@ export function OdooProjectPanel({ buzzProjectId, projectName }: { buzzProjectId
   const [project, setProject] = React.useState<OdooProject | null | undefined>(undefined);
   const [error, setError] = React.useState<ApiError | null>(null);
   const [wizard, setWizard] = React.useState(false);
+  const [wizardStep, setWizardStep] = React.useState<number | undefined>(undefined);
 
   const load = React.useCallback(() => {
     setError(null);
@@ -66,7 +69,19 @@ export function OdooProjectPanel({ buzzProjectId, projectName }: { buzzProjectId
   } else if (project === null) {
     body = <FirstConnection onStart={() => setWizard(true)} />;
   } else {
-    body = <ConnectedDashboard onManage={() => setWizard(true)} project={project} />;
+    body = (
+      <ConnectedDashboard
+        onManage={() => {
+          setWizardStep(undefined);
+          setWizard(true);
+        }}
+        onManageAgents={() => {
+          setWizardStep(3);
+          setWizard(true);
+        }}
+        project={project}
+      />
+    );
   }
 
   return (
@@ -77,6 +92,7 @@ export function OdooProjectPanel({ buzzProjectId, projectName }: { buzzProjectId
           buzzProjectId={buzzProjectId}
           defaultName={projectName}
           existing={project ?? null}
+          startStep={wizardStep}
           onDone={(p) => {
             setWizard(false);
             setProject(p);
@@ -146,7 +162,19 @@ function FirstConnection({ onStart }: { onStart: () => void }) {
 }
 
 // ------------------------------------------------------------------ connected
-function ConnectedDashboard({ project, onManage }: { project: OdooProject; onManage: () => void }) {
+function ConnectedDashboard({
+  project,
+  onManage,
+  onManageAgents,
+}: {
+  project: OdooProject;
+  onManage: () => void;
+  onManageAgents: () => void;
+}) {
+  const [org, setOrg] = React.useState<Org | null>(null);
+  React.useEffect(() => {
+    orgApi.org().then(setOrg).catch(() => undefined);
+  }, []);
   const [status, setStatus] = React.useState<ProjectStatus | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [health, setHealth] = React.useState<HealthReport | null>(null);
@@ -251,14 +279,24 @@ function ConnectedDashboard({ project, onManage }: { project: OdooProject; onMan
         </div>
 
         <aside className="flex flex-col gap-4">
-          <Card onManage={onManage} title="Agents on this project">
+          <Card onManage={onManageAgents} title={`Agents on this project · ${project.agents.length}`}>
             {project.agents.length === 0 ? <p className="px-4 pb-3 text-sm text-muted-foreground">No agents assigned.</p> : null}
-            {project.agents.map((a) => (
-              <div className="flex items-center gap-3 px-4 py-2" key={a}>
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"><Bot className="h-4 w-4" /></span>
-                <span className="flex-1 text-sm font-medium">{cap(a)}</span>
-              </div>
-            ))}
+            {project.agents.map((a) => {
+              const m = org?.members.find((x) => x.slug === a);
+              return (
+                <div className="flex items-center gap-3 px-4 py-1.5" key={a}>
+                  {m ? (
+                    <OrgAvatar badge={false} person={m} size={30} />
+                  ) : (
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"><Bot className="h-4 w-4" /></span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{m?.name ?? cap(a)}</span>
+                    {m?.title ? <span className="block truncate text-xs text-muted-foreground">{m.title}</span> : null}
+                  </span>
+                </div>
+              );
+            })}
           </Card>
           <Card onManage={onManage} title="GitHub">
             <Detail label="Repository" value={project.repo} icon={<GitBranch className="h-3.5 w-3.5" />} />

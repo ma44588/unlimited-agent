@@ -35,6 +35,7 @@ export function ConnectOdooWizard({
   onDone,
   onOpenChange,
   open,
+  startStep,
 }: {
   buzzProjectId: string;
   defaultName: string;
@@ -42,8 +43,10 @@ export function ConnectOdooWizard({
   onDone: (p: OdooProject) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  /** Open on a given step (e.g. 3 = Agents from the project's Agents card). */
+  startStep?: number;
 }) {
-  const [step, setStep] = React.useState(existing ? 1 : 0);
+  const [step, setStep] = React.useState(startStep ?? (existing ? 1 : 0));
   const [projects, setProjects] = React.useState<OdooShProject[] | null>(null);
   const [branches, setBranches] = React.useState<OdooShBranch[] | null>(null);
   const [allAgents, setAllAgents] = React.useState<string[]>([]);
@@ -106,6 +109,31 @@ export function ConnectOdooWizard({
 
   const canNext =
     (step === 0 && (hosting === "odoosh" || cicdooReady)) || (step === 1 && Boolean(odooSh) && stagingBranches.some((b) => b.name === branch)) || step === 2;
+
+  /** A project that is already connected: save the changes (no checks, no reconnect). */
+  async function saveExisting() {
+    if (!existing) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const changedConnection = odooSh !== (existing.odoosh_project ?? "") || branch !== existing.branch;
+      let p = existing;
+      if (changedConnection) {
+        p = await odooApi.save(
+          hosting === "cicdoo"
+            ? { buzz_project: buzzProjectId, name: defaultName, odoosh_project: "", branch, agents, provider: "cicdoo",
+                cicdoo_project: cicdooIds.current[odooSh] ?? "" }
+            : { buzz_project: buzzProjectId, name: defaultName, odoosh_project: odooSh, branch, agents },
+        );
+      }
+      p = await odooApi.projectAgents(p.id, agents);
+      onDone(p);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function connect() {
     setBusy(true);
@@ -373,11 +401,24 @@ export function ConnectOdooWizard({
           )}
           <span className="text-xs text-muted-foreground">{agents.length} agents · no passwords or keys to paste</span>
           {step < 3 ? (
-            <Button disabled={!canNext} onClick={() => setStep((s) => s + 1)}>Continue</Button>
+            <span className="flex gap-2">
+              {existing ? (
+                <Button disabled={busy || agents.length === 0} onClick={() => void saveExisting()} variant="outline">
+                  Save
+                </Button>
+              ) : null}
+              <Button disabled={!canNext} onClick={() => setStep((s) => s + 1)}>Continue</Button>
+            </span>
           ) : step === 3 ? (
-            <Button disabled={busy || agents.length === 0} onClick={connect}>
-              {busy ? <Loader2 className="animate-spin" /> : null} Connect
-            </Button>
+            existing ? (
+              <Button disabled={busy || agents.length === 0} onClick={() => void saveExisting()}>
+                {busy ? <Loader2 className="animate-spin" /> : null} Save
+              </Button>
+            ) : (
+              <Button disabled={busy || agents.length === 0} onClick={connect}>
+                {busy ? <Loader2 className="animate-spin" /> : null} Connect
+              </Button>
+            )
           ) : (
             <Button disabled={checks === null} onClick={() => saved && onDone(saved)}>Done</Button>
           )}

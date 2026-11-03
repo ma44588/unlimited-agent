@@ -189,6 +189,8 @@ export const odooApi = {
     cicdoo_project?: string;
   }) =>
     request<OdooProject>("POST", "/admin/projects", input),
+  /** Change who works on a connected project (scope + channel members), without reconnecting. */
+  projectAgents: (pid: string, agents: string[]) => request<OdooProject>("POST", `/admin/projects/${pid}/agents`, { agents }),
   check: (pid: string) => request<{ ok: boolean; pending?: boolean; steps: CheckStep[] }>("POST", `/admin/projects/${pid}/check`, {}),
   status: (pid: string) => request<ProjectStatus>("GET", `/admin/projects/${pid}/status`),
   health: (pid: string) => request<HealthReport>("POST", `/admin/projects/${pid}/health`, {}),
