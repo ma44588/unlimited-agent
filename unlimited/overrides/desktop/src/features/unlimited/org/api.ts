@@ -30,6 +30,8 @@ export type OrgPerson = {
   dept?: string;
   /** Approvers chosen for this person, per action; anything missing follows the reporting line. */
   approver_set?: Partial<Record<OrgAction, string>>;
+  /** False for people who never see client projects (Growth). */
+  clients?: boolean;
 };
 export type Department = { id: string; name: string; head: string; parent: string };
 export type OrgSettings = {
@@ -137,6 +139,9 @@ export const orgApi = {
     request<Org>("POST", "/admin/org/departments", body),
   /** Upload a photo (data URL of a JPG, PNG or WebP under 2 MB). */
   photo: (id: string, dataUrl: string) => request<Org>("POST", `/admin/org/members/${enc(id)}/photo`, { data: dataUrl }),
+  /** Add AI employees (org member ids) to a channel. */
+  channelAdd: (channelId: string, members: string[]) =>
+    request<{ channel: string; added: number }>("POST", `/admin/channels/${enc(channelId)}/members`, { members }),
   odooProjects: () => request<{ id: number; name: string }[]>("GET", "/admin/org/odoo-projects"),
 };
 

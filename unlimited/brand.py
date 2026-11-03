@@ -192,6 +192,53 @@ PATCHES = [
      "      if (await callServerEmployee([targetPubkey])) {\n        if (isMountedRef.current) onClose();\n        return;\n      }\n"
      "      await startHuddle(dm.id, isBot ? [targetPubkey] : []);\n",
      "await callServerEmployee([targetPubkey])"),
+    # Add agents in a channel: the AI team by department first, then the agents on this computer.
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     'import { AddChannelBotTeamsSection } from "@/features/channels/ui/AddChannelBotTeamsSection";\n',
+     'import { AddChannelBotTeamsSection } from "@/features/channels/ui/AddChannelBotTeamsSection";\n'
+     'import { useChannelMembersQuery } from "@/features/channels/hooks";\n'
+     'import { ChannelTeamSection, useChannelTeamPick } from "@/features/unlimited/org/TeamPicker";\n',
+     "useChannelTeamPick }"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     "  const createBotsMutation = useCreateChannelManagedAgentsMutation(channelId);\n",
+     "  const createBotsMutation = useCreateChannelManagedAgentsMutation(channelId);\n"
+     "  const channelMembers = useChannelMembersQuery(channelId, open && channelId !== null);\n"
+     "  const team = useChannelTeamPick(channelId, open, channelMembers.data?.map((m) => m.pubkey));\n",
+     "const team = useChannelTeamPick("),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     "  async function handleSubmit() {\n    if (providers.length === 0 || selectedPersonas.length === 0) return;\n",
+     "  async function handleSubmit() {\n"
+     "    if (team.count > 0) {\n"
+     "      try {\n        await team.submit();\n      } catch {\n        return;\n      }\n"
+     "      if (selectedPersonas.length === 0) {\n        handleOpenChange(false);\n        return;\n      }\n"
+     "    }\n"
+     "    if (providers.length === 0 || selectedPersonas.length === 0) return;\n",
+     "await team.submit();"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     "  const canSubmit =\n    providers.length > 0 &&\n",
+     "  const canSubmit =\n    (team.count > 0 && !team.pending && !createBotsMutation.isPending && (selectedPersonas.length === 0 || providers.length > 0)) ||\n    providers.length > 0 &&\n",
+     "team.count > 0 && !team.pending"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     "  const addButtonLabel = createBotsMutation.isPending\n",
+     "  const pickedTotal = team.count + selectedPersonas.length;\n"
+     "  const addButtonLabel = team.pending || createBotsMutation.isPending\n"
+     "    ? \"Adding…\"\n"
+     "    : team.count > 0\n"
+     "      ? `Add ${pickedTotal} ${pickedTotal === 1 ? \"agent\" : \"agents\"}`\n"
+     "      : createBotsMutation.isPending\n",
+     "const pickedTotal = team.count"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     '        footer={\n          <>\n            <Button\n              onClick={() => handleOpenChange(false)}\n',
+     '        footer={\n          <>\n            {team.summary ? <span className="me-auto truncate text-xs text-muted-foreground">{team.summary}</span> : null}\n            <Button\n              onClick={() => handleOpenChange(false)}\n',
+     "team.summary ? <span"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     '        description="Choose from your agents, or create a new one."\n',
+     '        description="Add your AI employees to this channel: pick a whole department, or open it and choose people."\n',
+     "pick a whole department"),
+    (DESKTOP / "src" / "features" / "channels" / "ui" / "AddChannelBotDialog.tsx",
+     "        <AddChannelBotPersonasSection\n",
+     "        <ChannelTeamSection team={team} />\n        <AddChannelBotPersonasSection\n",
+     "<ChannelTeamSection team={team} />"),
     # Settings > Voice: paid voice for calls with employees.
     (DESKTOP / "src" / "features" / "settings" / "ui" / "VoiceSettingsCard.tsx",
      'import { SettingsSectionHeader } from "./SettingsSectionHeader";\n',

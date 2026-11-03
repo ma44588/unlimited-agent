@@ -5,6 +5,8 @@ import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/ui/dialog";
 
+import { type Org, orgApi, type OrgPerson } from "../org/api";
+import { TeamPicker } from "../org/TeamPicker";
 import { type CheckStep, type OdooProject, type OdooShBranch, type OdooShProject, odooApi } from "./api";
 
 const STEPS = ["Hosting", "Odoo", "GitHub", "Agents"] as const;
@@ -45,6 +47,11 @@ export function ConnectOdooWizard({
   const [projects, setProjects] = React.useState<OdooShProject[] | null>(null);
   const [branches, setBranches] = React.useState<OdooShBranch[] | null>(null);
   const [allAgents, setAllAgents] = React.useState<string[]>([]);
+  const [org, setOrg] = React.useState<Org | null>(null);
+  const keepForProject = React.useCallback(
+    (m: OrgPerson) => m.kind === "ai" && m.clients !== false && (!allAgents.length || allAgents.includes(m.slug ?? "")),
+    [allAgents],
+  );
   const [query, setQuery] = React.useState("");
   const [odooSh, setOdooSh] = React.useState(existing?.odoosh_project ?? "");
   const [branch, setBranch] = React.useState(existing?.branch ?? "stag");
@@ -75,6 +82,7 @@ export function ConnectOdooWizard({
       odooApi.odooShProjects().then(setProjects).catch((e: Error) => setError(e.message));
     }
     odooApi.overview().then((o) => setAllAgents(o.agents)).catch(() => undefined);
+    orgApi.org().then(setOrg).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hosting, cicdooReady]);
 
@@ -289,6 +297,20 @@ export function ConnectOdooWizard({
           ) : null}
 
           {step === 3 ? (
+            org ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-[11px] font-bold tracking-wide text-muted-foreground">WHO WORKS ON THIS PROJECT</p>
+                <TeamPicker
+                  keep={keepForProject}
+                  onChange={(ids) => setAgents(ids.filter((id) => id.startsWith("ai:")).map((id) => id.slice(3)))}
+                  org={org}
+                  selected={agents.map((a) => `ai:${a}`)}
+                />
+                {org.members.some((m) => m.kind === "ai" && m.clients === false) ? (
+                  <p className="text-xs text-muted-foreground">Growth (Marketing, Sales) never sees client projects, so it is not listed here.</p>
+                ) : null}
+              </div>
+            ) : (
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-2 text-sm font-semibold">Agents on this project</legend>
               {(allAgents.length ? allAgents : ["developer", "documentation"]).map((a) => (
@@ -312,6 +334,7 @@ export function ConnectOdooWizard({
                 </span>
               </div>
             </fieldset>
+            )
           ) : null}
 
           {step === 4 ? (
@@ -348,7 +371,7 @@ export function ConnectOdooWizard({
           ) : (
             <span />
           )}
-          <span className="text-xs text-muted-foreground">No passwords or keys to paste</span>
+          <span className="text-xs text-muted-foreground">{agents.length} agents · no passwords or keys to paste</span>
           {step < 3 ? (
             <Button disabled={!canNext} onClick={() => setStep((s) => s + 1)}>Continue</Button>
           ) : step === 3 ? (
