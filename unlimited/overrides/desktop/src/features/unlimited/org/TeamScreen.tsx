@@ -142,111 +142,108 @@ function Node({ p, onOpen, active, size = 46 }: { p: OrgPerson; onOpen: (id: str
   );
 }
 
-const vline = <span className="mx-auto my-1 block h-4 w-0.5 bg-primary/25" />;
-
-function PersonRow({
-  m,
-  today,
-  onOpen,
-  selected,
-  head,
-}: {
-  m: OrgPerson;
-  today?: Today;
-  onOpen: (id: string) => void;
-  selected: string | null;
-  head?: boolean;
-}) {
-  const r = rowFor(today, m.id);
-  const [label, tone] = dayState(r);
-  return (
-    <button
-      className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-start hover:bg-muted/50",
-        selected === m.id && "bg-primary/10",
-        head && "py-2",
-      )}
-      onClick={() => onOpen(m.id)}
-      type="button"
-    >
-      <OrgAvatar person={m} size={head ? 42 : 34} />
-      <span className="min-w-0 flex-1">
-        <span className={cn("block truncate font-semibold text-foreground", head ? "text-[15px]" : "text-sm")}>
-          {m.name}
-          {head ? <span className="ms-2 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">Head</span> : null}
-        </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {m.title || (m.kind === "ai" ? "AI employee" : "Teammate")}
-          {m.kind === "ai" && r ? ` · ${r.total} task${r.total === 1 ? "" : "s"} today` : ""}
-        </span>
-      </span>
-      {m.kind === "ai" ? <Pill tone={tone}>{label}</Pill> : null}
-    </button>
-  );
-}
-
-function DeptCard({
-  d,
-  org,
-  today,
-  onOpen,
-  onEdit,
-  selected,
-  depth,
-}: {
-  d: Department;
-  org: Org;
-  today?: Today;
-  onOpen: (id: string) => void;
-  onEdit: (id: string) => void;
-  selected: string | null;
-  depth: number;
-}) {
-  const depts = org.departments ?? [];
-  const head = org.members.find((m) => m.id === d.head);
-  const people = org.members.filter((m) => m.dept === d.id && m.id !== d.head && !m.owner);
-  const kids = depts.filter((x) => x.parent === d.id);
-  const total = people.length + (head ? 1 : 0);
-  return (
-    <section className={cn("min-w-0 rounded-xl border border-border/60", depth === 0 ? "bg-background px-3 py-3" : "bg-muted/25 px-2.5 py-2")}>
-      <header className="mb-1.5 flex items-center justify-between gap-2 px-1">
-        <h3 className={cn("truncate font-bold text-foreground", depth === 0 ? "text-sm" : "text-[13px]")}>
-          {d.name} <span className="font-medium text-muted-foreground">· {total + kids.reduce((n, k) => n + countIn(org, k.id), 0)}</span>
-        </h3>
-        <button
-          className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={() => onEdit(d.id)}
-          type="button"
-        >
-          <Pencil className="h-3 w-3" /> Edit
-        </button>
-      </header>
-      {head ? (
-        <PersonRow head m={head} onOpen={onOpen} selected={selected} today={today} />
-      ) : (
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">No head yet. Click Edit to choose one.</p>
-      )}
-      {people.length ? (
-        <div className="ms-6 border-s-2 border-primary/20 ps-2">
-          {people.map((m) => (
-            <PersonRow key={m.id} m={m} onOpen={onOpen} selected={selected} today={today} />
-          ))}
-        </div>
-      ) : null}
-      {kids.length ? (
-        <div className={cn("mt-2 grid gap-2", depth === 0 && kids.length > 1 && "2xl:grid-cols-2")}>
-          {kids.map((k) => (
-            <DeptCard d={k} depth={depth + 1} key={k.id} onEdit={onEdit} onOpen={onOpen} org={org} selected={selected} today={today} />
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
 function countIn(org: Org, id: string): number {
   const own = org.members.filter((m) => m.dept === id && !m.owner).length;
   return own + (org.departments ?? []).filter((x) => x.parent === id).reduce((n, k) => n + countIn(org, k.id), 0);
+}
+
+type ChartProps = { org: Org; today?: Today; onOpen: (id: string) => void; onEdit: (id: string) => void; selected: string | null };
+
+/** One department: its name, its head on top, and the people under the head. */
+function DeptBox({ d, org, today, onOpen, onEdit, selected }: ChartProps & { d: Department }) {
+  const head = org.members.find((m) => m.id === d.head);
+  const people = org.members.filter((m) => m.dept === d.id && m.id !== d.head && !m.owner);
+  const dot = (m: OrgPerson) => {
+    const [label, tone] = dayState(rowFor(today, m.id));
+    const c = tone === "ok" ? "bg-emerald-500" : tone === "warn" ? "bg-amber-500" : "bg-muted-foreground/35";
+    return <span className={cn("h-2 w-2 shrink-0 rounded-full", c)} title={label} />;
+  };
+  return (
+    <div className="w-60 overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm">
+      <div className="flex items-center justify-between gap-2 bg-primary/10 px-3 py-1.5">
+        <span className="truncate text-xs font-bold text-primary">
+          {d.name} <span className="font-semibold text-primary/70">· {countIn(org, d.id)}</span>
+        </span>
+        <button
+          aria-label={`Edit ${d.name}`}
+          className="rounded p-0.5 text-primary/70 hover:bg-primary/15 hover:text-primary"
+          onClick={() => onEdit(d.id)}
+          type="button"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      </div>
+      {head ? (
+        <button
+          className={cn("flex w-full flex-col items-center gap-0.5 px-3 pb-2 pt-3 text-center hover:bg-muted/40", selected === head.id && "bg-primary/10")}
+          onClick={() => onOpen(head.id)}
+          type="button"
+        >
+          <OrgAvatar person={head} size={52} />
+          <span className="mt-1 flex max-w-full items-center gap-1.5 truncate text-sm font-bold text-foreground">
+            {head.name} {head.kind === "ai" ? dot(head) : null}
+          </span>
+          <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">{head.title}</span>
+        </button>
+      ) : (
+        <button className="w-full px-3 py-4 text-xs text-muted-foreground hover:bg-muted/40" onClick={() => onEdit(d.id)} type="button">
+          Choose a head
+        </button>
+      )}
+      {people.length ? (
+        <div className="border-t border-border/60 px-1.5 py-1">
+          {people.map((m) => (
+            <button
+              className={cn("flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-start hover:bg-muted/50", selected === m.id && "bg-primary/10")}
+              key={m.id}
+              onClick={() => onOpen(m.id)}
+              type="button"
+            >
+              <OrgAvatar badge={false} person={m} size={28} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-semibold text-foreground">{m.name}</span>
+                <span className="block truncate text-[11px] text-muted-foreground">{m.title}</span>
+              </span>
+              {m.kind === "ai" ? dot(m) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Children side by side under their parent, joined by elbow lines. */
+function Branches({ items }: { items: React.ReactNode[] }) {
+  const n = items.length;
+  return (
+    <div className="flex items-start justify-center">
+      {items.map((c, i) => (
+        <div className="relative flex flex-col items-center px-2.5 pt-6" key={i}>
+          {n > 1 ? (
+            <span className="absolute top-0 h-0.5 bg-primary/25" style={{ left: i === 0 ? "50%" : 0, right: i === n - 1 ? "50%" : 0 }} />
+          ) : null}
+          <span className="absolute left-1/2 top-0 h-6 w-0.5 -translate-x-1/2 bg-primary/25" />
+          {c}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DeptTree(props: ChartProps & { d: Department }) {
+  const kids = (props.org.departments ?? []).filter((x) => x.parent === props.d.id);
+  return (
+    <div className="flex flex-col items-center">
+      <DeptBox {...props} />
+      {kids.length ? (
+        <>
+          <span className="block h-6 w-0.5 bg-primary/25" />
+          <Branches items={kids.map((k) => <DeptTree {...props} d={k} key={k.id} />)} />
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 function OrgChart({
@@ -266,30 +263,28 @@ function OrgChart({
   const depts = org.departments ?? [];
   const top = depts.filter((d) => !d.parent || !depts.some((x) => x.id === d.parent));
   const loose = org.members.filter((m) => !m.owner && !depts.some((d) => d.id === m.dept));
+  const props = { org, today, onOpen, onEdit: onEditDept, selected };
   return (
-    <Card className="min-w-0 px-4 py-5">
-      <div className="flex flex-col items-center">
-        <Node active={selected === owner.id} onOpen={onOpen} p={owner} size={58} />
-        {top.length ? (
-          <>
-            {vline}
-            {top.length > 1 ? (
-              <span className="block h-3 w-1/2 max-w-full rounded-t-md border-x-2 border-t-2 border-primary/25" />
-            ) : null}
-          </>
-        ) : null}
-      </div>
-      <div className={cn("grid gap-4", top.length > 1 && "lg:grid-cols-2", top.length > 2 && "2xl:grid-cols-3")}>
-        {top.map((d) => (
-          <DeptCard d={d} depth={0} key={d.id} onEdit={onEditDept} onOpen={onOpen} org={org} selected={selected} today={today} />
-        ))}
+    <Card className="min-w-0 px-2 py-5">
+      <div className="overflow-x-auto pb-2">
+        <div className="mx-auto flex w-max min-w-full flex-col items-center px-4">
+          <Node active={selected === owner.id} onOpen={onOpen} p={owner} size={58} />
+          {top.length ? (
+            <>
+              <span className="block h-6 w-0.5 bg-primary/25" />
+              <Branches items={top.map((d) => <DeptTree {...props} d={d} key={d.id} />)} />
+            </>
+          ) : null}
+        </div>
       </div>
       {loose.length ? (
-        <section className="mt-4 rounded-xl border border-dashed border-border/70 px-3 py-3">
+        <section className="mx-3 mt-4 rounded-xl border border-dashed border-border/70 px-3 py-3">
           <h3 className="mb-1 px-1 text-sm font-bold text-foreground">Not in a department</h3>
-          {loose.map((m) => (
-            <PersonRow key={m.id} m={m} onOpen={onOpen} selected={selected} today={today} />
-          ))}
+          <div className="flex flex-wrap gap-1">
+            {loose.map((m) => (
+              <Node active={selected === m.id} key={m.id} onOpen={onOpen} p={m} size={40} />
+            ))}
+          </div>
         </section>
       ) : null}
       <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
