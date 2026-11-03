@@ -171,13 +171,16 @@ function useInPlaceUpdate() {
     let total = 0;
     let got = 0;
     try {
-      await update.downloadAndInstall((e) => {
+      // Download, then install: the same two permissions the sidebar update card uses.
+      await update.download((e) => {
         if (e.event === "Started") total = e.data.contentLength ?? 0;
         else if (e.event === "Progress") {
           got += e.data.chunkLength;
           if (total) setPercent(Math.min(99, Math.round((got / total) * 100)));
-        } else if (e.event === "Finished") setState("installing");
+        }
       });
+      setState("installing");
+      await update.install();
       await relaunch();
     } catch (e) {
       setError(`The one-click update didn't finish (${message(e)}).`);

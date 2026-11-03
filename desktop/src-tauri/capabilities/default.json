@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window and trusted huddle companions",
-  "windows": ["main", "huddle-*"],
+  "windows": [
+    "main",
+    "huddle-*"
+  ],
   "permissions": [
     "core:default",
     "core:webview:allow-set-webview-zoom",
@@ -23,6 +26,7 @@
     "updater:allow-check",
     "updater:allow-download",
     "updater:allow-install",
+    "updater:allow-download-and-install",
     "process:allow-restart",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
