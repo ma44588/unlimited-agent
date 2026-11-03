@@ -5,7 +5,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Bell, Check, CircleAlert, CircleCheck, Cloud, Copy, FolderGit2, KeyRound, Link2, Loader2, Mail, Plug, RefreshCw, Server, ShieldCheck } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, Cloud, Copy, FolderGit2, KeyRound, Link2, Loader2, Mail, Plug, RefreshCw, Server, ShieldCheck } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/shared/lib/cn";
@@ -14,16 +14,15 @@ import { Button } from "@/shared/ui/button";
 import { isDemo } from "../odoo/api";
 import { connectionsApi, type ConnItem, type ConnKind, type ConnState } from "./api";
 
-type TabKind = Exclude<ConnKind, "voice" | "company_odoo">;
+type TabKind = Exclude<ConnKind, "voice" | "company_odoo" | "push">;
 const META: Record<TabKind, { name: string; what: string; icon: React.ComponentType<{ className?: string }> }> = {
   github: { name: "GitHub", what: "Repositories the employees may push to (staging branches only)", icon: FolderGit2 },
   odoosh: { name: "Odoo.sh", what: "Projects, branches, builds and logs", icon: Cloud },
   cicdoo: { name: "CICDoo", what: "Your own servers managed on CICDoo", icon: Plug },
   server: { name: "Own server", what: "A staging server you run yourself, reached over SSH", icon: Server },
   email: { name: "Email", what: "The team mailbox the employees read and write from (you approve every send)", icon: Mail },
-  push: { name: "Notifications", what: "Approvals and plans reach your phone from Unlimited Agent", icon: Bell },
 };
-const ORDER: TabKind[] = ["github", "odoosh", "cicdoo", "server", "email", "push"];
+const ORDER: TabKind[] = ["github", "odoosh", "cicdoo", "server", "email"];
 
 const STATE: Record<ConnState, { label: string; tone: string; dot: string }> = {
   connected: { label: "Connected", tone: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
@@ -446,94 +445,6 @@ function EmailPanel({ c, run, busy }: PanelProps) {
   );
 }
 
-// ------------------------------------------------------------------ Notifications (APNs)
-function PushPanel({ c, run, busy }: PanelProps) {
-  const [f, setF] = React.useState({ p8: "", file: "", key_id: c.key_id || "SN8GF5647D", team_id: c.team_id || "93UW993K5H" });
-  const [tested, setTested] = React.useState("");
-  const pick = async (file: File | undefined) => {
-    if (!file) return;
-    const text = await file.text();
-    const m = file.name.match(/AuthKey_([A-Z0-9]{10})\.p8$/i);
-    setF((x) => ({ ...x, p8: text, file: file.name, key_id: m ? m[1]!.toUpperCase() : x.key_id }));
-  };
-  const save = () =>
-    run("push", async () => {
-      const r = await connectionsApi.save("push", { p8: f.p8, key_id: f.key_id.trim(), team_id: f.team_id.trim() });
-      setF((x) => ({ ...x, p8: "", file: "" }));
-      return r;
-    });
-  return (
-    <div className="space-y-4">
-      <Section
-        action={
-          c.state !== "off" ? (
-            <Button className="h-8 text-xs" disabled={busy === "push"} onClick={() => void run("push", () => connectionsApi.disconnect("push"))} size="sm" type="button" variant="ghost">
-              Disconnect
-            </Button>
-          ) : undefined
-        }
-        hint="The key is stored encrypted on your server and never shown again."
-        title={c.state === "off" ? "Upload the Apple push key" : "Phone notifications are on"}
-      >
-        {c.state === "off" ? (
-          <Steps
-            items={[
-              <>Pick the key you downloaded from Apple Developer: <b>AuthKey_SN8GF5647D.p8</b> (in Downloads).</>,
-              <>Press <b>Save</b>, then open Unlimited Agent on your phone once and allow notifications.</>,
-              <>Press <b>Send a test</b>. From then on approvals, emails waiting for you and plans reach your phone.</>,
-            ]}
-          />
-        ) : (
-          <p className="text-sm text-foreground">
-            {c.phones ? `${c.phones} phone${c.phones === 1 ? "" : "s"} registered.` : "No phone registered yet: open Unlimited Agent on your phone once and allow notifications."}
-          </p>
-        )}
-        {c.state === "off" ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground sm:col-span-3">
-              Apple key file (.p8)
-              <input accept=".p8" className="text-sm text-foreground file:me-3 file:rounded-md file:border file:border-border/70 file:bg-background file:px-3 file:py-1.5" onChange={(e) => void pick(e.target.files?.[0])} type="file" />
-              {f.file ? <span className="text-[11px] text-emerald-700">{f.file} ready</span> : null}
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Key ID
-              <input className={field} onChange={(e) => setF({ ...f, key_id: e.target.value })} value={f.key_id} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Team ID
-              <input className={field} onChange={(e) => setF({ ...f, team_id: e.target.value })} value={f.team_id} />
-            </label>
-          </div>
-        ) : null}
-        <div className="mt-4 flex justify-end gap-2">
-          {c.state !== "off" ? (
-            <Button
-              className="h-8 gap-1.5 text-xs"
-              disabled={busy !== ""}
-              onClick={() =>
-                void run("push-test", async () => {
-                  await connectionsApi.pushTest();
-                  setTested("Sent. Check your phone.");
-                })
-              }
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Spin icon={<Bell className="h-3.5 w-3.5" />} on={busy === "push-test"} /> Send a test
-            </Button>
-          ) : (
-            <Button className="h-8 gap-1.5 text-xs" disabled={!f.p8 || busy === "push"} onClick={() => void save()} size="sm" type="button">
-              <Spin icon={<KeyRound className="h-3.5 w-3.5" />} on={busy === "push"} /> Save
-            </Button>
-          )}
-        </div>
-        {tested ? <p className="mt-2 text-xs text-emerald-700">{tested}</p> : null}
-      </Section>
-    </div>
-  );
-}
-
 // ------------------------------------------------------------------ screen
 export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) {
   const [selected, setSelected] = React.useState<TabKind>("github");
@@ -573,7 +484,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
   const byKind = new Map((items ?? []).map((x) => [x.kind, x]));
   const c: ConnItem = byKind.get(selected) ?? { kind: selected, state: "off", detail: items ? "Not connected" : "Loading…" };
   const meta = META[selected];
-  const connected = (items ?? []).filter((x) => x.kind !== "voice" && x.kind !== "company_odoo" && x.state === "connected").length;
+  const connected = (items ?? []).filter((x) => x.kind !== "voice" && x.kind !== "company_odoo" && x.kind !== "push" && x.state === "connected").length;
 
   return (
     <div className={cn("w-full", !embedded && "flex h-full min-h-0")} data-testid="connections-screen">
@@ -592,7 +503,7 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
 
         <nav
           aria-label="Connections"
-          className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-border/60 bg-muted/40 p-1 md:grid-cols-3 xl:grid-cols-6"
+          className="mb-4 grid grid-cols-2 gap-1 rounded-xl border border-border/60 bg-muted/40 p-1 md:grid-cols-5"
           role="tablist"
         >
           {ORDER.map((kind) => {
@@ -680,7 +591,6 @@ export function ConnectionsScreen({ embedded = false }: { embedded?: boolean }) 
               {selected === "cicdoo" ? <CicdooPanel busy={busy} c={c} run={run} /> : null}
               {selected === "server" ? <ServerPanel busy={busy} c={c} key={c.server?.host ?? "new"} run={run} /> : null}
               {selected === "email" ? <EmailPanel busy={busy} c={c} key={c.address ?? "new"} run={run} /> : null}
-              {selected === "push" ? <PushPanel busy={busy} c={c} run={run} /> : null}
             </>
           ) : null}
           <p className="flex items-start gap-2 px-1 text-xs text-muted-foreground">

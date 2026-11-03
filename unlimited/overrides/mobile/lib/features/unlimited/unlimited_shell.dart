@@ -8,7 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
-import '../../shared/push/push_bridge.dart' show apnsDeviceToken;
+import '../../shared/push/push_bridge.dart'
+    show apnsDeviceToken, apnsRegistrationError;
 import '../../shared/relay/relay_provider.dart';
 import 'unlimited_api.dart';
 import 'ud.dart';
@@ -65,6 +66,7 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
   Future<void> _startPush() async {
     if (defaultTargetPlatform != TargetPlatform.iOS) return;
     apnsDeviceToken.addListener(_sendPushToken);
+    apnsRegistrationError.addListener(_sendPushError);
     _sendPushToken();
     try {
       await const MethodChannel('buzz/push').invokeMethod<void>('startRegistration');
@@ -90,9 +92,21 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
     );
   }
 
+  /// When iOS refuses a token, tell the server why (shown in Settings > Notifications on the desktop).
+  void _sendPushError() {
+    final error = apnsRegistrationError.value;
+    if (error == null || error.isEmpty) return;
+    unawaited(
+      UnlimitedApi(ref.read(relayConfigProvider))
+          .post('/admin/push/register', {'error': error})
+          .catchError((Object _) => null),
+    );
+  }
+
   @override
   void dispose() {
     apnsDeviceToken.removeListener(_sendPushToken);
+    apnsRegistrationError.removeListener(_sendPushError);
     _timer?.cancel();
     super.dispose();
   }

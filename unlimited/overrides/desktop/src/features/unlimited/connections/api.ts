@@ -27,6 +27,8 @@ export type ConnItem = {
   key_id?: string;
   team_id?: string;
   phones?: number;
+  /** push: why the last phone could not get a token from Apple, if it failed. */
+  last_error?: string;
 };
 export type VoiceProvider = "openai" | "gemini" | "anthropic" | "elevenlabs";
 

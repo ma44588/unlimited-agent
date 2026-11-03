@@ -546,6 +546,20 @@ PATCHES = [
      '          <UsageSidebarEntry />\n',
      '          <UsageSidebarEntry />\n          <WorkspacesSidebarEntry />\n',
      "<WorkspacesSidebarEntry />"),
+    # Settings > Notifications: phone notifications from Unlimited Agent (APNs key, test) above the desktop ones.
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     'import { NotificationSettingsCard } from "./NotificationSettingsCard";\n',
+     'import { NotificationSettingsCard } from "./NotificationSettingsCard";\n'
+     'import { PhoneNotificationsCard } from "@/features/unlimited/notifications/PhoneNotificationsCard";\n',
+     "import { PhoneNotificationsCard }"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '    case "notifications":\n      return (\n        <NotificationSettingsCard\n',
+     '    case "notifications":\n      return (\n        <>\n        <PhoneNotificationsCard />\n        <NotificationSettingsCard\n',
+     "<PhoneNotificationsCard />"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '          onSetSoundForSlot={props.onSetSoundForSlot}\n        />\n      );\n    case "voice":',
+     '          onSetSoundForSlot={props.onSetSoundForSlot}\n        />\n        </>\n      );\n    case "voice":',
+     "        </>\n      );\n    case \"voice\":"),
     # Today and Team (the org chart and the daily plan): own pages, first in the sidebar group.
     (DESKTOP / "src" / "app" / "routes.ts",
      '  route("/workspaces", "workspaces.tsx"),\n',
