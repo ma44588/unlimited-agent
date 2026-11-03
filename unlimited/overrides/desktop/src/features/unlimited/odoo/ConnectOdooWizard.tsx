@@ -111,7 +111,7 @@ export function ConnectOdooWizard({
     (step === 0 && (hosting === "odoosh" || cicdooReady)) || (step === 1 && Boolean(odooSh) && stagingBranches.some((b) => b.name === branch)) || step === 2;
 
   /** A project that is already connected: save the changes (no checks, no reconnect). */
-  async function saveExisting() {
+  async function saveExisting(goOn = false) {
     if (!existing) return;
     setBusy(true);
     setError(null);
@@ -127,9 +127,11 @@ export function ConnectOdooWizard({
         );
       }
       p = await odooApi.projectAgents(p.id, agents);
-      onDone(p);
+      if (goOn) await runChecks(p);
+      else onDone(p);
     } catch (e) {
       setError((e as Error).message);
+      if (goOn) setChecks((c) => c ?? []);
     } finally {
       setBusy(false);
     }
@@ -145,21 +147,27 @@ export function ConnectOdooWizard({
               cicdoo_project: cicdooIds.current[odooSh] ?? "" }
           : { buzz_project: buzzProjectId, name: defaultName, odoosh_project: odooSh, branch, agents },
       );
-      setSaved(p);
-      setStep(4);
-      let res = await odooApi.check(p.id);
-      setChecks(res.steps);
-      // Odoo.sh applies firewall changes within ~5 minutes: re-check by itself while it settles.
-      for (let i = 0; res.pending && i < 16; i += 1) {
-        await new Promise((r) => setTimeout(r, 30000));
-        res = await odooApi.check(p.id);
-        setChecks(res.steps);
-      }
+      await runChecks(p);
     } catch (e) {
       setError((e as Error).message);
       setChecks((c) => c ?? []);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Show the checking step for a saved project and re-check while Odoo.sh settles. */
+  async function runChecks(p: OdooProject) {
+    setSaved(p);
+    setChecks(null);
+    setStep(4);
+    let res = await odooApi.check(p.id);
+    setChecks(res.steps);
+    // Odoo.sh applies firewall changes within ~5 minutes: re-check by itself while it settles.
+    for (let i = 0; res.pending && i < 16; i += 1) {
+      await new Promise((r) => setTimeout(r, 30000));
+      res = await odooApi.check(p.id);
+      setChecks(res.steps);
     }
   }
 
@@ -411,9 +419,14 @@ export function ConnectOdooWizard({
             </span>
           ) : step === 3 ? (
             existing ? (
-              <Button disabled={busy || agents.length === 0} onClick={() => void saveExisting()}>
-                {busy ? <Loader2 className="animate-spin" /> : null} Save
-              </Button>
+              <span className="flex gap-2">
+                <Button disabled={busy || agents.length === 0} onClick={() => void saveExisting()} variant="outline">
+                  Save
+                </Button>
+                <Button disabled={busy || agents.length === 0} onClick={() => void saveExisting(true)}>
+                  {busy ? <Loader2 className="animate-spin" /> : null} Continue
+                </Button>
+              </span>
             ) : (
               <Button disabled={busy || agents.length === 0} onClick={connect}>
                 {busy ? <Loader2 className="animate-spin" /> : null} Connect
