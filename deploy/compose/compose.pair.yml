@@ -1,0 +1,10 @@
+# Unlimited: NIP-AB device pairing sidecar (desktop Settings > Mobile). Ephemeral, no storage, behind Caddy /pair.
+services:
+  pair-relay:
+    image: ${BUZZ_IMAGE:-ghcr.io/block/buzz:main}
+    entrypoint: ["/usr/local/bin/buzz-pair-relay"]
+    command: []
+    environment:
+      BUZZ_PAIR_RELAY_BIND_ADDR: 0.0.0.0:5000
+    restart: unless-stopped
+    networks: [buzz-net]

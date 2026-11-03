@@ -108,7 +108,8 @@ jobs:
         run: |
           # The archive is unsigned, so it carries no entitlements and the export would drop aps-environment
           # (iOS then refuses a push token). Sign it ad hoc with the entitlement; the export re-signs for real.
-          APP="$RUNNER_TEMP/Runner.xcarchive/Products/Applications/Runner.app"
+          APP="$(find "$RUNNER_TEMP/Runner.xcarchive/Products/Applications" -maxdepth 1 -name "*.app" | head -1)"
+          echo "app: $APP"
           printf %s '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>aps-environment</key><string>production</string></dict></plist>' > "$RUNNER_TEMP/runner.entitlements"
           find "$APP/Frameworks" "$APP/PlugIns" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" -o -name "*.appex" \) -exec codesign --force --sign - {} \; 2>/dev/null || true
           codesign --force --sign - --entitlements "$RUNNER_TEMP/runner.entitlements" "$APP"

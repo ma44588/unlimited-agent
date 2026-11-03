@@ -41,6 +41,9 @@ export function orgDemo(_method: string, path: string): unknown {
   if (path === "/admin/org")
     return { members: people.map((p) => ({ ...p, reports: people.filter((x) => x.reports_to === p.id).map((x) => x.id) })), settings,
       odoo: { kind: "company_odoo", state: "connected", detail: "https://unlimitedsolutions.technology · company · mostafa" } };
+  if (path === "/admin/phone" || path.startsWith("/admin/phone/"))
+    return { webhook: "", numbers: { "+12188456005": "developer" }, owner_phones: ["+966536428369"],
+      twilio: { connected: true, account: "AC629694…" }, openai: true, recent: [] };
   if (path === "/admin/org/odoo-projects") return [{ id: 1, name: "Odoo 18 migration" }, { id: 2, name: "Internal tools" }];
   if (path.startsWith("/admin/plans/") && !path.endsWith("/decide"))
     return { id: "demo-plan", date: new Date().toISOString().slice(0, 10), lead: "ai:hany", status: "pending", approver: "human:k", created_at: iso(60),

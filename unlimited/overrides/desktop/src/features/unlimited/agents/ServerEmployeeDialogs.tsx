@@ -6,7 +6,7 @@
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { AtSign, Brain, Building2, Cpu, FileText, Loader2, Mic, Play, Plus, RotateCcw, Send, Server, ShieldCheck, SlidersHorizontal, Square, Trash2, UserRound, X } from "lucide-react";
+import { AtSign, Brain, Building2, Phone, Cpu, FileText, Loader2, Mic, Play, Plus, RotateCcw, Send, Server, ShieldCheck, SlidersHorizontal, Square, Trash2, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import { ChooserDialogContent } from "@/shared/ui/chooser-dialog-content";
 import { Dialog } from "@/shared/ui/dialog";
 import { AgentIdentityFields } from "@/features/agents/ui/AgentDescriptionField";
 import { OdooAccountSection } from "@/features/unlimited/org/OdooAccountSection";
+import { EmployeePhoneSection } from "@/features/unlimited/agents/EmployeePhoneSection";
 import {
   PERSONA_FIELD_CONTROL_CLASS,
   PERSONA_FIELD_SHELL_CLASS,
@@ -51,7 +52,7 @@ const EFFORT_OPTIONS: PersonaDropdownOption[] = [
   { value: "24000", label: "Max" },
 ];
 
-type Section = "profile" | "odoo" | "channels" | "voice" | "instructions" | "model" | "memory" | "advanced";
+type Section = "profile" | "odoo" | "phone" | "channels" | "voice" | "instructions" | "model" | "memory" | "advanced";
 
 type Draft = ServerEmployeeInput & {
   person: string;
@@ -530,6 +531,7 @@ function ServerEmployeeDialog({
   const sections: { id: Section; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: "profile", label: "Profile", icon: UserRound },
     ...(editing ? [{ id: "odoo" as Section, label: "Company Odoo", icon: Building2 }] : []),
+    ...(editing ? [{ id: "phone" as Section, label: "Phone", icon: Phone }] : []),
     { id: "channels", label: "Telegram & email", icon: Send },
     ...(demo ? [{ id: "voice" as Section, label: "Voice", icon: Mic }] : []),
     { id: "instructions", label: "Instructions", icon: FileText },
@@ -648,6 +650,10 @@ function ServerEmployeeDialog({
 
               {section === "odoo" ? (
                 <OdooAccountSection memberId={`ai:${employee?.slug ?? ""}`} name={details?.person || draft.person || draft.name || employee?.slug || ""} />
+              ) : null}
+
+              {section === "phone" ? (
+                <EmployeePhoneSection name={details?.person || draft.person || draft.name || employee?.slug || ""} slug={employee?.slug ?? ""} />
               ) : null}
 
               {section === "channels" ? <ChannelsField details={details} disabled={pending} draft={draft} employee={employee} set={set} /> : null}

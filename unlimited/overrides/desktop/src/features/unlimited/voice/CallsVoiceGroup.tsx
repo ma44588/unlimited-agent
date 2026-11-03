@@ -12,6 +12,7 @@ import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
 
 import { connectionsApi, type ConnItem, type VoiceProvider } from "../connections/api";
+import { PhoneLineGroup } from "./PhoneLineGroup";
 
 const ENGINES = [
   {
@@ -179,6 +180,7 @@ export function CallsVoiceGroup() {
           {error ? <p className="px-4 pb-3 text-xs text-destructive">{error}</p> : null}
         </SettingsOptionGroup>
       ) : null}
+      <PhoneLineGroup />
     </>
   );
 }
