@@ -3,15 +3,40 @@ const P = (id: string, name: string, title: string, kind: "ai" | "human", report
   id, name, title, kind, reports_to, slug: id.replace("ai:", ""), capacity: 3, approves: [], status: "running", ...extra,
 });
 const people = [
-  P("owner", "Mostafa Gabr", "CEO", "human", null, { owner: true, approves: ["plan", "staging", "production"] }),
-  P("human:k", "Karim Adel", "Head of Delivery", "human", "owner", { approves: ["plan"] }),
-  P("ai:hany", "Hany Saleh", "Tech Lead", "ai", "human:k", { lead: true }),
-  P("ai:salma", "Salma Nabil", "Sales Lead", "ai", "human:k"),
-  P("ai:farida", "Farida Ali", "Accounting", "ai", "human:k"),
-  P("ai:omar", "Omar Hassan", "Senior Dev", "ai", "ai:hany", { odoo_user: "omar@unlimitedsolutions.technology" }),
-  P("ai:yousef", "Yousef Samir", "Developer", "ai", "ai:hany"),
-  P("ai:nour", "Nour Adel", "Developer", "ai", "ai:hany"),
-  P("human:r", "Rana Sayed", "QA", "human", "ai:hany", { approves: ["staging"] }),
+  P("owner", "Mostafa Gabr", "CEO", "human", null, { owner: true, approves: ["plan", "staging", "production"], avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/55f0e36b1379321f2050.jpg" }),
+  P("ai:karim", "Karim", "Head of Delivery", "ai", "owner", { dept: "dl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/548badd43fc0bcd7da01.jpg" }),
+  P("ai:rana", "Rana", "Head of Growth", "ai", "owner", { dept: "gr", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/9110e64537933b98955e.jpg" }),
+  P("ai:bassem", "Bassem", "Project Manager", "ai", "ai:karim", { dept: "dl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/015dc95c18672d1d5a3e.jpg" }),
+  P("ai:sara", "Sara", "QA Lead", "ai", "ai:karim", { dept: "dl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/c786df2ce3797f876882.jpg" }),
+  P("ai:mazen", "Mazen", "DevOps Engineer", "ai", "ai:karim", { dept: "dl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/08414c11635156327617.jpg" }),
+  P("ai:documentation", "Rami", "Delivery Officer", "ai", "ai:karim", { dept: "dl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/dead84a394e9be4f963e.jpg" }),
+  P("ai:hana", "Hana", "Lead Business Analyst", "ai", "ai:karim", { dept: "ba", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/dcd57a09d66d11545c31.jpg" }),
+  P("ai:reem", "Reem", "Business Analyst", "ai", "ai:hana", { dept: "ba", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/3c35050c5f83089d497f.jpg" }),
+  P("ai:khaled", "Khaled", "Lead Implementer", "ai", "ai:karim", { dept: "im", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/7ec01e2d78e558bd5d00.jpg" }),
+  P("ai:mona", "Mona", "Odoo Implementer (Finance & Inventory)", "ai", "ai:khaled", { dept: "im", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/bba46fab54e7f8fb95cb.jpg" }),
+  P("ai:waleed", "Waleed", "Odoo Implementer (Sales, CRM & HR)", "ai", "ai:khaled", { dept: "im", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/b2d8ae35fd06e1f1cb63.jpg" }),
+  P("ai:omar", "Omar", "Technical Lead", "ai", "ai:karim", { dept: "dv", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/2b99b56a9872ae2e2b28.jpg" }),
+  P("ai:developer", "Youssef", "Senior Odoo Developer", "ai", "ai:omar", { dept: "dv", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/1d75947379e1ef28c788.jpg" }),
+  P("ai:nour", "Nour", "Odoo Reports Developer", "ai", "ai:omar", { dept: "dv", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/293fb9fc801ee0e405d6.jpg" }),
+  P("ai:laila", "Laila", "Website & Frontend Developer", "ai", "ai:omar", { dept: "dv", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/37d8b4e968e865c83ed4.jpg" }),
+  P("ai:tarek", "Tarek", "Integration Developer", "ai", "ai:omar", { dept: "dv", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/804d035d6963d0740c7f.jpg" }),
+  P("ai:ziad", "Ziad", "Data Migration Specialist", "ai", "ai:omar", { dept: "dv", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/d0f05df5c5f229991b2b.jpg" }),
+  P("ai:mariam", "Mariam", "Marketing Manager", "ai", "ai:rana", { dept: "mk", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/f9e6d35cd298203c6ecf.jpg" }),
+  P("ai:salma", "Salma", "Content Writer", "ai", "ai:mariam", { dept: "mk", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/6db5a91f9e31886bc0df.jpg" }),
+  P("ai:dina", "Dina", "Social Media & Ads Specialist", "ai", "ai:mariam", { dept: "mk", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/faa84a0f9812746bf2bd.jpg" }),
+  P("ai:samir", "Samir", "Sales Manager", "ai", "ai:rana", { dept: "sl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/ca11dba5f519065fe1fe.jpg" }),
+  P("ai:adam", "Adam", "Pre-sales & Proposal Writer", "ai", "ai:samir", { dept: "sl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/71810d1c7899c512bb21.jpg" }),
+  P("ai:jana", "Jana", "Account Manager", "ai", "ai:samir", { dept: "sl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/e86aaf12e96eef3b6ad2.jpg" }),
+  P("ai:yara", "Yara", "Lead Generation Specialist", "ai", "ai:samir", { dept: "sl", avatar: "https://app.unlimitedsolutions.technology/unlimited-api/avatars/442f4f02bc4599a508d9.jpg" }),
+];
+const departments = [
+  { id: "dl", name: "Delivery", head: "ai:karim", parent: "" },
+  { id: "ba", name: "Business Analysis", head: "ai:hana", parent: "dl" },
+  { id: "im", name: "Implementation", head: "ai:khaled", parent: "dl" },
+  { id: "dv", name: "Development", head: "ai:omar", parent: "dl" },
+  { id: "gr", name: "Growth", head: "ai:rana", parent: "" },
+  { id: "mk", name: "Marketing", head: "ai:mariam", parent: "gr" },
+  { id: "sl", name: "Sales", head: "ai:samir", parent: "gr" },
 ];
 const T = (id: number, name: string, status: "open" | "done" | "blocked", spent = 0) => ({
   id, name, ref: `#${id}`, project: "Odoo 18 migration", stage: status === "done" ? "Done" : "In Progress", status, hours: 2, spent, url: "",
@@ -22,9 +47,10 @@ const row = (id: string, tasks: ReturnType<typeof T>[]) => ({
   now: tasks.find((t) => t.status === "open")?.name ?? null, hours: tasks.length * 2, spent: tasks.reduce((a, t) => a + t.spent, 0),
 });
 const rows = [
-  row("ai:omar", [T(412, "Migrate sale_custom to 18.0", "done", 2.5), T(415, "Fix invoice report header", "done", 1), T(418, "stock.move compute is slow", "open", 2)]),
-  row("ai:yousef", [T(420, "Import client price lists", "blocked"), T(421, "Portal access rules", "open")]),
+  row("ai:developer", [T(412, "Migrate sale_custom to 18.0", "done", 2.5), T(415, "Fix invoice report header", "done", 1), T(418, "stock.move compute is slow", "open", 2)]),
+  row("ai:tarek", [T(420, "Import client price lists", "blocked"), T(421, "Portal access rules", "open")]),
   row("ai:nour", [T(399, "Payroll rules review", "done"), T(402, "Website menu fix", "done"), T(404, "POS receipt layout", "done")]),
+  row("ai:mona", [T(430, "VAT setup review", "open")]),
 ];
 const iso = (m: number) => new Date(Date.now() - m * 60000).toISOString();
 const settings = { tz: "Africa/Cairo", plan_at: "08:00", report_at: "17:00", escalate_minutes: 30, workdays: [6, 0, 1, 2, 3], projects: [] };
@@ -40,7 +66,7 @@ export function orgDemo(_method: string, path: string): unknown {
     };
   if (path === "/admin/org")
     return { members: people.map((p) => ({ ...p, reports: people.filter((x) => x.reports_to === p.id).map((x) => x.id) })), settings,
-      odoo: { kind: "company_odoo", state: "connected", detail: "https://unlimitedsolutions.technology · company · mostafa" } };
+      odoo: { kind: "company_odoo", state: "connected", detail: "https://unlimitedsolutions.technology · company · mostafa" }, departments };
   if (path === "/admin/phone" || path.startsWith("/admin/phone/"))
     return { webhook: "", numbers: { "+12188456005": "developer" }, owner_phones: ["+966536428369"],
       twilio: { connected: true, account: "AC629694…" }, openai: true, recent: [] };

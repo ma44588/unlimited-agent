@@ -125,126 +125,168 @@ export function TeamScreen() {
 }
 
 // ------------------------------------------------------------------ org chart (CEO -> departments -> head -> people)
-function Node({ p, onOpen, active, size = 46 }: { p: OrgPerson; onOpen: (id: string) => void; active: boolean; size?: number }) {
-  return (
-    <button
-      className={cn(
-        "flex w-36 flex-col items-center gap-1 rounded-xl px-1 py-2 text-center transition-colors hover:bg-muted/50",
-        active && "bg-primary/10 ring-1 ring-primary/30",
-      )}
-      onClick={() => onOpen(p.id)}
-      type="button"
-    >
-      <OrgAvatar badge={p.owner ? "You" : undefined} person={p} size={size} />
-      <span className="mt-1 w-full truncate text-sm font-bold text-foreground">{p.name}</span>
-      <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">{p.title || (p.kind === "ai" ? "AI employee" : "Teammate")}</span>
-    </button>
-  );
-}
-
 function countIn(org: Org, id: string): number {
   const own = org.members.filter((m) => m.dept === id && !m.owner).length;
   return own + (org.departments ?? []).filter((x) => x.parent === id).reduce((n, k) => n + countIn(org, k.id), 0);
 }
 
+/** Division colours (top-level departments), cycled. */
+const DIVISION = [
+  { fg: "#6d3f8f", bg: "rgba(122,71,148,.09)", line: "rgba(122,71,148,.28)" },
+  { fg: "#0f766e", bg: "rgba(15,118,110,.08)", line: "rgba(15,118,110,.28)" },
+  { fg: "#1d4ed8", bg: "rgba(29,78,216,.07)", line: "rgba(29,78,216,.25)" },
+  { fg: "#b45309", bg: "rgba(180,83,9,.08)", line: "rgba(180,83,9,.25)" },
+];
+type Hue = (typeof DIVISION)[number];
 type ChartProps = { org: Org; today?: Today; onOpen: (id: string) => void; onEdit: (id: string) => void; selected: string | null };
 
-/** One department: its name, its head on top, and the people under the head. */
-function DeptBox({ d, org, today, onOpen, onEdit, selected }: ChartProps & { d: Department }) {
-  const head = org.members.find((m) => m.id === d.head);
-  const people = org.members.filter((m) => m.dept === d.id && m.id !== d.head && !m.owner);
-  const dot = (m: OrgPerson) => {
-    const [label, tone] = dayState(rowFor(today, m.id));
-    const c = tone === "ok" ? "bg-emerald-500" : tone === "warn" ? "bg-amber-500" : "bg-muted-foreground/35";
-    return <span className={cn("h-2 w-2 shrink-0 rounded-full", c)} title={label} />;
-  };
+const STATUS_DOT: Record<string, string> = { ok: "bg-emerald-500", warn: "bg-amber-500", accent: "bg-primary", neutral: "bg-muted-foreground/40" };
+const STATUS_TEXT: Record<string, string> = {
+  ok: "text-emerald-700 dark:text-emerald-300",
+  warn: "text-amber-700 dark:text-amber-300",
+  accent: "text-primary",
+  neutral: "text-muted-foreground",
+};
+
+function PersonCard({ m, head, hue, today, onOpen, selected }: { m: OrgPerson; head?: boolean; hue: Hue } & Omit<ChartProps, "org" | "onEdit">) {
+  const [label, tone] = dayState(rowFor(today, m.id));
   return (
-    <div className="w-60 overflow-hidden rounded-xl border border-border/70 bg-background shadow-sm">
-      <div className="flex items-center justify-between gap-2 bg-primary/10 px-3 py-1.5">
-        <span className="truncate text-xs font-bold text-primary">
-          {d.name} <span className="font-semibold text-primary/70">· {countIn(org, d.id)}</span>
+    <button
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-xl border bg-background text-start transition-colors hover:bg-muted/40",
+        head ? "px-2.5 py-2.5 shadow-sm" : "border-border/60 px-2 py-1.5",
+        selected === m.id && "ring-2 ring-primary/40",
+      )}
+      onClick={() => onOpen(m.id)}
+      style={head ? { borderColor: hue.line, borderWidth: 1.5 } : undefined}
+      title={`${m.name}${m.title ? `, ${m.title}` : ""}`}
+      type="button"
+    >
+      <OrgAvatar badge={false} person={m} size={head ? 46 : 36} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className={cn("truncate font-semibold text-foreground", head ? "text-[15px]" : "text-sm")}>{m.name}</span>
+          {head ? (
+            <span className="shrink-0 rounded px-1 text-[9.5px] font-bold uppercase tracking-wide" style={{ background: hue.bg, color: hue.fg }}>
+              Head
+            </span>
+          ) : null}
         </span>
-        <button
-          aria-label={`Edit ${d.name}`}
-          className="rounded p-0.5 text-primary/70 hover:bg-primary/15 hover:text-primary"
-          onClick={() => onEdit(d.id)}
-          type="button"
-        >
-          <Pencil className="h-3 w-3" />
+        <span className="block truncate text-xs text-muted-foreground">{m.title || (m.kind === "ai" ? "AI employee" : "Teammate")}</span>
+        {m.kind === "ai" ? (
+          <span className={cn("mt-0.5 flex items-center gap-1 text-[10.5px] font-semibold", STATUS_TEXT[tone])}>
+            <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT[tone])} />
+            {label === "On track" ? "Working" : label}
+          </span>
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+/** A column: department name and size, its head, then its people. */
+function Lane({ title, count, head, people, note, hue, onEdit, ...p }: Omit<ChartProps, "onEdit"> & {
+  title: string;
+  count: number;
+  head?: OrgPerson;
+  people: OrgPerson[];
+  note?: string;
+  hue: Hue;
+  onEdit?: () => void;
+}) {
+  return (
+    <section className="flex min-w-[178px] flex-1 flex-col rounded-2xl border border-border/50 bg-muted/25 px-2.5 pb-2.5" style={{ borderTop: `3px solid ${hue.fg}` }}>
+      <header className="flex items-center gap-1.5 px-1 pb-2 pt-2.5">
+        <h3 className="truncate text-[13px] font-bold text-foreground">{title}</h3>
+        <span className="rounded-full border border-border/60 bg-background px-1.5 text-[11px] text-muted-foreground">{count}</span>
+        {onEdit ? (
+          <button aria-label={`Edit ${title}`} className="ms-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" onClick={onEdit} type="button">
+            <Pencil className="h-3 w-3" />
+          </button>
+        ) : null}
+      </header>
+      {note ? (
+        <p className="px-1 pb-2 text-xs font-semibold" style={{ color: hue.fg }}>
+          {note}
+        </p>
+      ) : null}
+      <div className="flex flex-col gap-1.5">
+        {head ? <PersonCard head hue={hue} m={head} {...p} /> : null}
+        {people.map((m) => (
+          <PersonCard hue={hue} key={m.id} m={m} {...p} />
+        ))}
+        {!head && !people.length ? <p className="px-1 py-2 text-xs text-muted-foreground">Nobody here yet.</p> : null}
+      </div>
+    </section>
+  );
+}
+
+function descendants(org: Org, id: string): Department[] {
+  const kids = (org.departments ?? []).filter((x) => x.parent === id);
+  return kids.flatMap((k) => [k, ...descendants(org, k.id)]);
+}
+
+/** A division (top-level department): its head across the top, its departments as columns side by side. */
+function Division({ d, hue, ...p }: ChartProps & { d: Department; hue: Hue }) {
+  const { org } = p;
+  const head = org.members.find((m) => m.id === d.head);
+  const office = org.members.filter((m) => m.dept === d.id && m.id !== d.head && !m.owner);
+  const subs = descendants(org, d.id);
+  const lp = { org, today: p.today, onOpen: p.onOpen, selected: p.selected };
+  return (
+    <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex items-center gap-3 rounded-2xl border px-3.5 py-2.5" style={{ background: hue.bg, borderColor: hue.line }}>
+        {head ? <OrgAvatar badge={false} person={head} size={44} /> : null}
+        <button className="min-w-0 flex-1 text-start" disabled={!head} onClick={() => head && p.onOpen(head.id)} type="button">
+          <span className="block text-[11px] font-extrabold" style={{ color: hue.fg }}>
+            {d.name} · {countIn(org, d.id)} people
+          </span>
+          <span className="block truncate text-sm font-bold text-foreground">{head ? head.name : "No head yet"}</span>
+          <span className="block truncate text-xs text-muted-foreground">{head?.title}</span>
+        </button>
+        <button aria-label={`Edit ${d.name}`} className="rounded p-1 hover:bg-background/60" onClick={() => p.onEdit(d.id)} style={{ color: hue.fg }} type="button">
+          <Pencil className="h-3.5 w-3.5" />
         </button>
       </div>
-      {head ? (
-        <button
-          className={cn("flex w-full flex-col items-center gap-0.5 px-3 pb-2 pt-3 text-center hover:bg-muted/40", selected === head.id && "bg-primary/10")}
-          onClick={() => onOpen(head.id)}
-          type="button"
-        >
-          <OrgAvatar person={head} size={52} />
-          <span className="mt-1 flex max-w-full items-center gap-1.5 truncate text-sm font-bold text-foreground">
-            {head.name} {head.kind === "ai" ? dot(head) : null}
-          </span>
-          <span className="line-clamp-2 text-[11px] leading-tight text-muted-foreground">{head.title}</span>
-        </button>
-      ) : (
-        <button className="w-full px-3 py-4 text-xs text-muted-foreground hover:bg-muted/40" onClick={() => onEdit(d.id)} type="button">
-          Choose a head
-        </button>
-      )}
-      {people.length ? (
-        <div className="border-t border-border/60 px-1.5 py-1">
-          {people.map((m) => (
-            <button
-              className={cn("flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-start hover:bg-muted/50", selected === m.id && "bg-primary/10")}
-              key={m.id}
-              onClick={() => onOpen(m.id)}
-              type="button"
-            >
-              <OrgAvatar badge={false} person={m} size={28} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-semibold text-foreground">{m.name}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">{m.title}</span>
-              </span>
-              {m.kind === "ai" ? dot(m) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <div className="mt-3 flex flex-1 gap-2.5">
+        {office.length || !subs.length ? (
+          <Lane
+            {...lp}
+            count={office.length}
+            hue={hue}
+            note={head ? `Reports to ${firstName(head)} directly` : undefined}
+            people={office}
+            title={head ? `${firstName(head)}'s office` : d.name}
+          />
+        ) : null}
+        {subs.map((s) => {
+          const sh = org.members.find((m) => m.id === s.head);
+          const ppl = org.members.filter((m) => m.dept === s.id && m.id !== s.head && !m.owner);
+          return (
+            <Lane
+              {...lp}
+              count={ppl.length + (sh ? 1 : 0)}
+              head={sh}
+              hue={hue}
+              key={s.id}
+              onEdit={() => p.onEdit(s.id)}
+              people={ppl}
+              title={s.name}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-/** Children side by side under their parent, joined by elbow lines. */
-function Branches({ items }: { items: React.ReactNode[] }) {
-  const n = items.length;
-  return (
-    <div className="flex items-start justify-center">
-      {items.map((c, i) => (
-        <div className="relative flex flex-col items-center px-2.5 pt-6" key={i}>
-          {n > 1 ? (
-            <span className="absolute top-0 h-0.5 bg-primary/25" style={{ left: i === 0 ? "50%" : 0, right: i === n - 1 ? "50%" : 0 }} />
-          ) : null}
-          <span className="absolute left-1/2 top-0 h-6 w-0.5 -translate-x-1/2 bg-primary/25" />
-          {c}
-        </div>
-      ))}
-    </div>
-  );
+function laneCount(org: Org, d: Department): number {
+  const office = org.members.some((m) => m.dept === d.id && m.id !== d.head && !m.owner);
+  const subs = descendants(org, d.id).length;
+  return Math.max(1, subs + (office || !subs ? 1 : 0));
 }
 
-function DeptTree(props: ChartProps & { d: Department }) {
-  const kids = (props.org.departments ?? []).filter((x) => x.parent === props.d.id);
-  return (
-    <div className="flex flex-col items-center">
-      <DeptBox {...props} />
-      {kids.length ? (
-        <>
-          <span className="block h-6 w-0.5 bg-primary/25" />
-          <Branches items={kids.map((k) => <DeptTree {...props} d={k} key={k.id} />)} />
-        </>
-      ) : null}
-    </div>
-  );
-}
+const LINE = "bg-border";
 
 function OrgChart({
   org,
@@ -263,31 +305,74 @@ function OrgChart({
   const depts = org.departments ?? [];
   const top = depts.filter((d) => !d.parent || !depts.some((x) => x.id === d.parent));
   const loose = org.members.filter((m) => !m.owner && !depts.some((d) => d.id === m.dept));
-  const props = { org, today, onOpen, onEdit: onEditDept, selected };
+  const ai = org.members.filter((m) => m.kind === "ai");
+  const working = ai.filter((m) => {
+    const r = rowFor(today, m.id);
+    return r && r.total > r.done;
+  }).length;
+  const p = { org, today, onOpen, onEdit: onEditDept, selected };
   return (
-    <Card className="min-w-0 px-2 py-5">
-      <div className="overflow-x-auto pb-2">
-        <div className="mx-auto flex w-max min-w-full flex-col items-center px-4">
-          <Node active={selected === owner.id} onOpen={onOpen} p={owner} size={58} />
+    <Card className="min-w-0 px-4 py-5">
+      <div className="overflow-x-auto pb-1">
+        <div className="w-full" style={{ minWidth: Math.max(640, top.reduce((n, d) => n + laneCount(org, d), 0) * 192) }}>
+          <button
+            className={cn(
+              "mx-auto flex w-max items-center gap-3.5 rounded-2xl bg-foreground py-2.5 pe-5 ps-2.5 text-start text-background",
+              selected === owner.id && "ring-2 ring-primary/50",
+            )}
+            onClick={() => onOpen(owner.id)}
+            type="button"
+          >
+            <OrgAvatar badge={false} person={owner} size={52} />
+            <span>
+              <span className="block text-base font-bold">{owner.name}</span>
+              <span className="block text-xs opacity-70">{owner.title || "CEO"} · approves prices and production</span>
+            </span>
+            <span className="ms-3 flex gap-5 border-s border-background/20 ps-5 text-xs opacity-80">
+              {(
+                [
+                  [ai.length, "AI employees"],
+                  [depts.length, "departments"],
+                  [working, "working now"],
+                ] as const
+              ).map(([n, l]) => (
+                <span key={l}>
+                  <b className="block text-lg leading-tight">{n}</b>
+                  {l}
+                </span>
+              ))}
+            </span>
+          </button>
           {top.length ? (
             <>
-              <span className="block h-6 w-0.5 bg-primary/25" />
-              <Branches items={top.map((d) => <DeptTree {...props} d={d} key={d.id} />)} />
+              <span className={cn("mx-auto block h-6 w-0.5", LINE)} />
+              <div className="flex">
+                {top.map((d, i) => {
+                  const n = top.length;
+                  return (
+                    <div className="relative flex min-w-0 flex-col px-1.5 pt-6" key={d.id} style={{ flex: laneCount(org, d) }}>
+                      {n > 1 ? <span className={cn("absolute top-0 h-0.5", LINE)} style={{ left: i === 0 ? "50%" : 0, right: i === n - 1 ? "50%" : 0 }} /> : null}
+                      <span className={cn("absolute left-1/2 top-0 h-6 w-0.5 -translate-x-1/2", LINE)} />
+                      <Division {...p} d={d} hue={DIVISION[i % DIVISION.length]!} />
+                    </div>
+                  );
+                })}
+              </div>
             </>
           ) : null}
         </div>
       </div>
       {loose.length ? (
-        <section className="mx-3 mt-4 rounded-xl border border-dashed border-border/70 px-3 py-3">
-          <h3 className="mb-1 px-1 text-sm font-bold text-foreground">Not in a department</h3>
-          <div className="flex flex-wrap gap-1">
+        <section className="mt-5 rounded-2xl border border-dashed border-border/70 px-3 py-3">
+          <h3 className="mb-2 px-1 text-sm font-bold text-foreground">Not in a department</h3>
+          <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
             {loose.map((m) => (
-              <Node active={selected === m.id} key={m.id} onOpen={onOpen} p={m} size={40} />
+              <PersonCard hue={DIVISION[0]!} key={m.id} m={m} onOpen={onOpen} selected={selected} today={today} />
             ))}
           </div>
         </section>
       ) : null}
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
         <span>Click anyone to set their department, manager, approvers and photo.</span>
         <Button className="h-7 gap-1 text-xs" onClick={() => onEditDept("new")} size="sm" type="button" variant="outline">
           <Plus className="h-3 w-3" /> Add a department
