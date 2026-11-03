@@ -35,15 +35,47 @@ class OrgPerson {
   String get odooUser => _s(j['odoo_user']);
   bool get odooConnected => j['odoo_connected'] == true;
   bool get running => j['status'] == 'running' || j['status'] == 'up';
+  String get dept => _s(j['dept']);
+
+  /// Approvers chosen for this person per action (missing = up the line).
+  Map<String, String> get approverSet => {
+    for (final e in _m(j['approver_set']).entries) e.key: _s(e.value),
+  };
   String get first => name.split(RegExp(r'\s+')).first;
+}
+
+class Dept {
+  Dept(this.j);
+  final Map<String, dynamic> j;
+  String get id => _s(j['id']);
+  String get name => _s(j['name']);
+  String get head => _s(j['head']);
+  String get parent => _s(j['parent']);
 }
 
 class OrgData {
   OrgData(Map<String, dynamic> j)
     : people = [for (final m in _ms(j['members'])) OrgPerson(m)],
+      depts = [for (final d in _ms(j['departments'])) Dept(d)],
       settings = _m(j['settings']),
       odoo = _m(j['odoo']);
   final List<OrgPerson> people;
+  final List<Dept> depts;
+  Dept? dept(String id) => depts.where((d) => d.id == id).firstOrNull;
+  List<Dept> get topDepts => [
+    for (final d in depts)
+      if (d.parent.isEmpty || dept(d.parent) == null) d,
+  ];
+  List<Dept> childDepts(String id) => [
+    for (final d in depts)
+      if (d.parent == id) d,
+  ];
+  List<OrgPerson> inDept(String id) => [
+    for (final p in people)
+      if (p.dept == id && !p.isOwner) p,
+  ];
+  int countIn(String id) =>
+      inDept(id).length + childDepts(id).fold(0, (n, k) => n + countIn(k.id));
   final Map<String, dynamic> settings;
   final Map<String, dynamic> odoo;
 
@@ -263,6 +295,19 @@ extension UnlimitedOrgApi on UnlimitedApi {
       'login': ?login,
       'key': ?key,
     }),
+  );
+
+  /// Create or change a department; apply=true redraws the reporting lines.
+  Future<OrgData> department(Map<String, Object?> body) async =>
+      OrgData(_m(await post('/admin/org/departments', body)));
+
+  /// Upload a photo (JPG, PNG or WebP under 2 MB) as a data URL.
+  Future<OrgData> photo(String id, String dataUrl) async => OrgData(
+    _m(
+      await post('/admin/org/members/${Uri.encodeComponent(id)}/photo', {
+        'data': dataUrl,
+      }),
+    ),
   );
 
   Future<OrgData> addPerson(Map<String, Object?> fields) async =>

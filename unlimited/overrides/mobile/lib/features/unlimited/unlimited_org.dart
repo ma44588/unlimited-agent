@@ -1,11 +1,13 @@
 // Unlimited Agent: Today, the org chart, the morning plan and the company
 // Odoo link, built to the approved design (Nov 2026 board).
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'ud.dart';
@@ -111,7 +113,7 @@ class UOrgAvatar extends StatelessWidget {
                     ),
                   ),
           ),
-          if (size >= 28)
+          if (size >= 28 && label.isNotEmpty)
             Positioned(
               right: 0,
               bottom: 0,
@@ -1213,6 +1215,14 @@ class _UTeamHomeState extends ConsumerState<UTeamHome> {
                       org: l.org,
                       today: l.today,
                       onOpen: open,
+                      onEditDept: (d) async {
+                        final changed = await Navigator.of(context).push<bool>(
+                          MaterialPageRoute(
+                            builder: (_) => UDeptEditScreen(org: l.org, dept: d),
+                          ),
+                        );
+                        if (changed == true) await reload();
+                      },
                     ),
                     _ => _Workload(
                       key: const ValueKey(2),
@@ -1288,13 +1298,19 @@ class _OrgChart extends StatelessWidget {
     required this.org,
     required this.today,
     required this.onOpen,
+    required this.onEditDept,
   });
   final OrgData org;
   final TodayData? today;
   final Future<void> Function(OrgPerson) onOpen;
+  final Future<void> Function(Dept?) onEditDept;
 
   @override
   Widget build(BuildContext context) {
+    if (org.people.isEmpty) {
+      return Center(child: Text('The team is loading…', style: Ud.of(context).sub));
+    }
+    if (org.depts.isNotEmpty) return _deptTree(context);
     final u = Ud.of(context);
     final line = Color.lerp(u.line, u.accent, .25)!;
     Widget vline() => Container(
@@ -1486,6 +1502,190 @@ class _OrgChart extends StatelessWidget {
           padding: const EdgeInsets.only(top: 12),
           child: Text(
             'Tap anyone to set who they report to and what they approve.',
+            textAlign: TextAlign.center,
+            style: u.sub,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // CEO -> departments -> head -> people (departments nest).
+  Widget _deptTree(BuildContext context) {
+    final u = Ud.of(context);
+    final line = Color.lerp(u.line, u.accent, .25)!;
+
+    Widget person(OrgPerson m, {bool head = false}) {
+      final r = today?.rowFor(m.id);
+      final (label, tone) = _state(r);
+      return InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => onOpen(m),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: head ? 8 : 6, horizontal: 4),
+          child: Row(
+            children: [
+              UOrgAvatar(
+                name: m.name,
+                id: m.id,
+                url: m.avatar,
+                ai: m.isAi,
+                size: head ? 42 : 34,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            m.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: u.title.copyWith(fontSize: head ? 15 : 13.5),
+                          ),
+                        ),
+                        if (head) ...[
+                          const SizedBox(width: 6),
+                          const UdPill('Head', tone: UdTone.accent),
+                        ],
+                      ],
+                    ),
+                    Text(
+                      [
+                        if (m.title.isNotEmpty) m.title else (m.isAi ? 'AI employee' : 'Teammate'),
+                        if (m.isAi && r != null) '${r.total} task${r.total == 1 ? '' : 's'} today',
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: u.sub,
+                    ),
+                  ],
+                ),
+              ),
+              if (m.isAi) UdPill(label, tone: tone),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget dept(Dept d, int depth) {
+      final head = org.people.where((p) => p.id == d.head).firstOrNull;
+      final people = [
+        for (final p in org.inDept(d.id))
+          if (p.id != d.head) p,
+      ];
+      final kids = org.childDepts(d.id);
+      return Container(
+        margin: EdgeInsets.only(top: depth == 0 ? 0 : 8),
+        padding: EdgeInsets.fromLTRB(depth == 0 ? 10 : 8, 8, 6, 8),
+        decoration: BoxDecoration(
+          color: depth == 0 ? u.card : u.chip,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: u.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${d.name}  ·  ${org.countIn(d.id)}',
+                    style: u.title.copyWith(fontSize: depth == 0 ? 15.5 : 14),
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Edit department',
+                  icon: Icon(Icons.edit_outlined, size: 18, color: u.muted),
+                  onPressed: () => onEditDept(d),
+                ),
+              ],
+            ),
+            if (head != null)
+              person(head, head: true)
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text('No head yet. Tap edit to choose one.', style: u.sub),
+              ),
+            if (people.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(left: 20),
+                padding: const EdgeInsets.only(left: 10),
+                decoration: BoxDecoration(
+                  border: Border(left: BorderSide(color: line, width: 2)),
+                ),
+                child: Column(children: [for (final m in people) person(m)]),
+              ),
+            for (final k in kids) dept(k, depth + 1),
+          ],
+        ),
+      );
+    }
+
+    final loose = [
+      for (final p in org.people)
+        if (!p.isOwner && org.dept(p.dept) == null) p,
+    ];
+    final top = org.topDepts;
+    return ListView(
+      physics: udScroll,
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+      children: [
+        UEnter(
+          index: 0,
+          child: Column(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => onOpen(org.owner),
+                child: Column(
+                  children: [
+                    UOrgAvatar(
+                      name: org.owner.name,
+                      id: org.owner.id,
+                      url: org.owner.avatar,
+                      ai: false,
+                      size: 54,
+                      badge: 'You',
+                    ),
+                    const SizedBox(height: 4),
+                    Text(org.owner.name, style: u.title.copyWith(fontSize: 14)),
+                    Text(org.owner.title.isEmpty ? 'CEO' : org.owner.title, style: u.sub),
+                  ],
+                ),
+              ),
+              Container(width: 2, height: 14, margin: const EdgeInsets.symmetric(vertical: 6), color: line),
+            ],
+          ),
+        ),
+        for (final (i, d) in top.indexed)
+          UEnter(
+            index: i + 1,
+            child: Padding(padding: const EdgeInsets.only(bottom: 12), child: dept(d, 0)),
+          ),
+        if (loose.isNotEmpty)
+          UdCard(
+            padding: const EdgeInsets.fromLTRB(10, 10, 6, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Not in a department', style: u.title),
+                for (final m in loose) person(m),
+              ],
+            ),
+          ),
+        const SizedBox(height: 4),
+        UdButton(label: 'Add a department', ghost: true, onTap: () => onEditDept(null)),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            'Tap anyone to set their department, manager, approvers and photo.',
             textAlign: TextAlign.center,
             style: u.sub,
           ),
@@ -2001,10 +2201,47 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
   late int _cap = widget.person.capacity;
   late final _odoo = TextEditingController(text: widget.person.odooUser);
   late final _title = TextEditingController(text: widget.person.title);
+  late final _name = TextEditingController(text: widget.person.name);
   late final _avatar = TextEditingController(text: widget.person.avatar);
   final _odooKey = TextEditingController();
   late final Set<String> _approves = {...widget.person.approves};
+  late String _dept = widget.person.dept;
+  late final Map<String, String> _approverSet = {...widget.person.approverSet};
   bool _busy = false;
+  bool _uploading = false;
+
+  String? get _deptHead {
+    final d = widget.org.dept(_dept);
+    if (d == null) return null;
+    if (d.head.isNotEmpty && d.head != widget.person.id) return d.head;
+    final up = widget.org.dept(d.parent);
+    return (up != null && up.head.isNotEmpty) ? up.head : 'owner';
+  }
+
+  Future<void> _pickPhoto() async {
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (x == null) return;
+    setState(() => _uploading = true);
+    try {
+      final bytes = await x.readAsBytes();
+      final o = await uApi(ref).photo(
+        widget.person.id,
+        'data:image/jpeg;base64,${base64Encode(bytes)}',
+      );
+      final url = o.people.where((m) => m.id == widget.person.id).firstOrNull?.avatar;
+      if (url != null && mounted) setState(() => _avatar.text = url);
+      unawaited(HapticFeedback.mediumImpact());
+    } catch (e) {
+      if (mounted) _toast(context, e.toString());
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
 
   Future<void> _save() async {
     setState(() => _busy = true);
@@ -2017,12 +2254,17 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
         _odooKey.clear();
       }
       await uApi(ref).updateMember(p.id, {
-        'reports_to': _to,
+        if (!p.isOwner) 'reports_to': _to,
         if (!p.isAi) 'odoo_user': login,
         'avatar': _avatar.text.trim(),
         if (p.isAi) 'capacity': _cap,
         if (!p.isAi) 'approves': _approves.toList(),
-        if (!p.isAi) 'title': _title.text.trim(),
+        if (!p.isOwner) ...{
+          'title': _title.text.trim(),
+          'name': _name.text.trim(),
+          'dept': _dept,
+          'approvers': _approverSet,
+        },
       });
       unawaited(HapticFeedback.mediumImpact());
       if (mounted) Navigator.of(context).pop(true);
@@ -2031,6 +2273,53 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Widget _approversCard(BuildContext context) {
+    final u = Ud.of(context);
+    final humans = [
+      for (final h in widget.org.people)
+        if (!h.isAi) h,
+    ];
+    return UdCard(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Approvers for ${widget.person.first}', style: u.title),
+          const SizedBox(height: 8),
+          for (final e in _actionLabels.entries) ...[
+            DropdownButtonFormField<String>(
+              initialValue: humans.any((h) => h.id == _approverSet[e.key])
+                  ? _approverSet[e.key]
+                  : '',
+              isExpanded: true,
+              decoration: _field(context, e.value),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('Up the reporting line')),
+                for (final h in humans)
+                  DropdownMenuItem(
+                    value: h.id,
+                    child: Text(h.isOwner ? '${h.name} (you)' : h.name),
+                  ),
+              ],
+              onChanged: (v) => setState(() {
+                if (v == null || v.isEmpty) {
+                  _approverSet.remove(e.key);
+                } else {
+                  _approverSet[e.key] = v;
+                }
+              }),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            'Only people approve. If the approver does not answer in time, it goes to you.',
+            style: u.sub,
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _remove() async {
@@ -2060,19 +2349,61 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
         physics: udScroll,
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
         children: [
-          _managerPicker(
-            context,
-            widget.org,
-            p.id,
-            _to,
-            (v) => setState(() => _to = v),
+          Row(
+            children: [
+              UOrgAvatar(
+                name: p.name,
+                id: p.id,
+                url: _avatar.text,
+                ai: p.isAi,
+                size: 58,
+                badge: '',
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: UdButton(
+                  label: _uploading ? 'Uploading…' : 'Upload a photo',
+                  ghost: true,
+                  onTap: _uploading ? null : _pickPhoto,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          if (!p.isAi) ...[
-            TextField(
-              controller: _title,
-              decoration: _field(context, 'Job title'),
+          const SizedBox(height: 14),
+          if (!p.isOwner) ...[
+            TextField(controller: _name, decoration: _field(context, 'Name')),
+            const SizedBox(height: 12),
+            TextField(controller: _title, decoration: _field(context, 'Job title')),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: widget.org.dept(_dept) == null ? '' : _dept,
+              isExpanded: true,
+              decoration: _field(context, 'Department'),
+              items: [
+                const DropdownMenuItem(value: '', child: Text('No department')),
+                for (final d in widget.org.depts)
+                  DropdownMenuItem(value: d.id, child: Text(d.name)),
+              ],
+              onChanged: (v) => setState(() => _dept = v ?? ''),
             ),
+            const SizedBox(height: 12),
+            _managerPicker(
+              context,
+              widget.org,
+              p.id,
+              _to,
+              (v) => setState(() => _to = v),
+            ),
+            if (_deptHead != null && _deptHead != _to)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => setState(() => _to = _deptHead),
+                  child: const Text('Use the department head'),
+                ),
+              ),
+            const SizedBox(height: 8),
+            _approversCard(context),
             const SizedBox(height: 12),
           ],
           TextField(
@@ -2154,6 +2485,173 @@ class _UMemberEditScreenState extends ConsumerState<UMemberEditScreen> {
               danger: true,
               onTap: _remove,
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Create or change a department: name, where it sits, its head and its people.
+class UDeptEditScreen extends ConsumerStatefulWidget {
+  const UDeptEditScreen({super.key, required this.org, this.dept});
+  final OrgData org;
+  final Dept? dept;
+  @override
+  ConsumerState<UDeptEditScreen> createState() => _UDeptEditScreenState();
+}
+
+class _UDeptEditScreenState extends ConsumerState<UDeptEditScreen> {
+  late final _name = TextEditingController(text: widget.dept?.name ?? '');
+  late String _parent = widget.dept?.parent ?? '';
+  late String _head = widget.dept?.head ?? '';
+  late final Set<String> _members = {
+    if (widget.dept != null)
+      for (final p in widget.org.inDept(widget.dept!.id)) p.id,
+  };
+  bool _apply = true;
+  bool _busy = false;
+
+  Set<String> get _banned {
+    final out = <String>{};
+    void mark(String id) {
+      out.add(id);
+      for (final k in widget.org.childDepts(id)) {
+        mark(k.id);
+      }
+    }
+
+    if (widget.dept != null) mark(widget.dept!.id);
+    return out;
+  }
+
+  Future<void> _save() async {
+    if (_name.text.trim().isEmpty) {
+      _toast(context, 'Give the department a name.');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await uApi(ref).department({
+        if (widget.dept != null) 'id': widget.dept!.id,
+        'name': _name.text.trim(),
+        'parent': _parent,
+        'head': _head,
+        'members': _members.toList(),
+        'apply': _apply,
+      });
+      unawaited(HapticFeedback.mediumImpact());
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) _toast(context, e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    try {
+      await uApi(ref).department({'id': widget.dept!.id, 'action': 'remove'});
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) _toast(context, e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final u = Ud.of(context);
+    final org = widget.org;
+    final people = [
+      for (final p in org.people)
+        if (!p.isOwner) p,
+    ];
+    final banned = _banned;
+    return UdPage(
+      back: true,
+      title: widget.dept == null ? 'New department' : widget.dept!.name,
+      bottom: UdComposer(
+        children: [
+          Expanded(
+            child: UdButton(
+              label: widget.dept == null ? 'Create department' : 'Save department',
+              onTap: _busy ? null : _save,
+            ),
+          ),
+        ],
+      ),
+      body: ListView(
+        physics: udScroll,
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+        children: [
+          TextField(controller: _name, decoration: _field(context, 'Name', hint: 'Development')),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: org.dept(_parent) == null ? '' : _parent,
+            isExpanded: true,
+            decoration: _field(context, 'Under'),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('The CEO (top level)')),
+              for (final d in org.depts)
+                if (!banned.contains(d.id)) DropdownMenuItem(value: d.id, child: Text(d.name)),
+            ],
+            onChanged: (v) => setState(() => _parent = v ?? ''),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: people.any((p) => p.id == _head) ? _head : '',
+            isExpanded: true,
+            decoration: _field(context, 'Head (manager of this department)'),
+            items: [
+              const DropdownMenuItem(value: '', child: Text('No head yet')),
+              for (final p in people)
+                DropdownMenuItem(
+                  value: p.id,
+                  child: Text(
+                    '${p.name}${p.title.isEmpty ? '' : ' · ${p.title}'}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: (v) => setState(() => _head = v ?? ''),
+          ),
+          const SizedBox(height: 14),
+          Text('People in this department', style: u.title),
+          const SizedBox(height: 6),
+          UdCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                for (final p in people)
+                  CheckboxListTile.adaptive(
+                    dense: true,
+                    value: _members.contains(p.id) || p.id == _head,
+                    onChanged: p.id == _head
+                        ? null
+                        : (v) => setState(() => v == true ? _members.add(p.id) : _members.remove(p.id)),
+                    secondary: UOrgAvatar(name: p.name, id: p.id, url: p.avatar, ai: p.isAi, size: 30, badge: ''),
+                    title: Text(p.name, style: u.title.copyWith(fontSize: 14)),
+                    subtitle: (!_members.contains(p.id) && p.id != _head && org.dept(p.dept) != null)
+                        ? Text('now in ${org.dept(p.dept)!.name}', style: u.sub)
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: _apply,
+            onChanged: (v) => setState(() => _apply = v),
+            title: Text('Update reporting lines', style: u.title.copyWith(fontSize: 14)),
+            subtitle: Text(
+              'The head reports to the head above (or you), and everyone here reports to the head.',
+              style: u.sub,
+            ),
+          ),
+          if (widget.dept != null) ...[
+            const SizedBox(height: 12),
+            UdButton(label: 'Delete department', ghost: true, danger: true, onTap: _delete),
           ],
         ],
       ),
