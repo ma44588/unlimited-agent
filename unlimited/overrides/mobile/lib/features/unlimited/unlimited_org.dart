@@ -342,7 +342,16 @@ class UTodayScreen extends ConsumerWidget {
                 ),
               ..._needs(context, ref, t, b, reload),
               for (final (i, team) in t.teams.indexed)
-                UEnter(index: 3 + i, child: _TeamCard(team)),
+                UEnter(
+                  index: 3 + i,
+                  child: _TeamCard(
+                    team,
+                    deploys: [
+                      for (final d in t.deploys)
+                        if (_teamHasDeploy(team, d)) d,
+                    ],
+                  ),
+                ),
               if (t.teams.isEmpty && t.odoo && t.hasTeams)
                 Padding(
                   padding: const EdgeInsets.only(top: 18),
@@ -653,9 +662,128 @@ class _SetupCard extends StatelessWidget {
   }
 }
 
+bool _teamHasDeploy(TeamDay team, DeployLine d) => team.rows.any((r) {
+  final dep = r.deploy;
+  return dep != null &&
+      dep.project == d.project &&
+      (dep.state == 'building' || dep.state == 'waiting');
+});
+
+/// One line per staging branch while someone publishes.
+class _DeployStrip extends StatelessWidget {
+  const _DeployStrip(this.d);
+  final DeployLine d;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = Ud.of(context);
+    const blue = Color(0xFF2563EB);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: u.dark ? blue.withValues(alpha: .14) : const Color(0xFFE7EEFD),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: d.building ? blue : u.muted,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: d.branch,
+                    style: u.title.copyWith(fontSize: 13.5),
+                  ),
+                  TextSpan(
+                    text: d.building
+                        ? ' · Odoo.sh is rebuilding${d.by.isNotEmpty ? ' (${d.by})' : ''}'
+                        : ' · idle',
+                    style: u.sub.copyWith(color: u.fg),
+                  ),
+                  if (d.waiting > 0)
+                    TextSpan(
+                      text: '\n${d.waiting} waiting to publish',
+                      style: u.sub,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Publish state chip on a person's row.
+class _DeployChip extends StatelessWidget {
+  const _DeployChip(this.dep);
+  final Deploy dep;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = Ud.of(context);
+    final since = DateTime.tryParse(dep.since)?.toLocal();
+    final mins = since == null
+        ? 0
+        : DateTime.now().difference(since).inMinutes.clamp(0, 9999);
+    final hm = since == null
+        ? ''
+        : '${since.hour.toString().padLeft(2, '0')}:${since.minute.toString().padLeft(2, '0')}';
+    final (Color bg, Color fg, String text) = switch (dep.state) {
+      'building' => (
+        const Color(0xFF2563EB).withValues(alpha: u.dark ? .18 : .1),
+        u.dark ? const Color(0xFF93B4FF) : const Color(0xFF2563EB),
+        '● Rebuilding ${dep.branch} · $mins min',
+      ),
+      'waiting' => (u.line, u.muted, 'Waiting to publish'),
+      'live' => (
+        const Color(0xFF16A34A).withValues(alpha: u.dark ? .18 : .1),
+        u.dark ? const Color(0xFF86EFAC) : const Color(0xFF15803D),
+        'Live on staging $hm',
+      ),
+      _ => (
+        const Color(0xFFDC2626).withValues(alpha: u.dark ? .18 : .1),
+        u.dark ? const Color(0xFFFCA5A5) : const Color(0xFFB42318),
+        'Build failed $hm',
+      ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        text,
+        style: u.sub.copyWith(
+          color: fg,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _TeamCard extends StatelessWidget {
-  const _TeamCard(this.team);
+  const _TeamCard(this.team, {this.deploys = const []});
   final TeamDay team;
+  final List<DeployLine> deploys;
 
   @override
   Widget build(BuildContext context) {
@@ -685,6 +813,7 @@ class _TeamCard extends StatelessWidget {
             ],
           ),
         ),
+        for (final d in deploys) _DeployStrip(d),
         _card(context, [
           for (final (i, r) in rows.indexed)
             _PersonDayRow(
@@ -724,6 +853,7 @@ class _PersonDayRow extends StatelessWidget {
     final r = row;
     final allDone = r.total > 0 && r.done == r.total;
     final blockedTask = r.tasks.where((t) => t.blocked).firstOrNull;
+    final dep = r.deploy;
     final line = allDone
         ? 'All done'
         : blockedTask != null
@@ -757,14 +887,29 @@ class _PersonDayRow extends StatelessWidget {
                   const SizedBox(height: 6),
                   UBar(r.total == 0 ? 0 : r.done / r.total),
                   const SizedBox(height: 4),
-                  Text(
-                    line,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: u.sub.copyWith(
-                      color: blockedTask != null && !allDone ? Ud.warn : null,
+                  if (dep != null && !(blockedTask != null && !allDone)) ...[
+                    const SizedBox(height: 2),
+                    _DeployChip(dep),
+                    const SizedBox(height: 4),
+                    Text(
+                      dep.state == 'building'
+                          ? 'Published: ${dep.task}'
+                          : dep.state == 'waiting'
+                          ? dep.task
+                          : (r.now.isNotEmpty ? 'Now: ${r.now}' : dep.task),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: u.sub,
                     ),
-                  ),
+                  ] else
+                    Text(
+                      line,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: u.sub.copyWith(
+                        color: blockedTask != null && !allDone ? Ud.warn : null,
+                      ),
+                    ),
                 ],
               ),
             ),

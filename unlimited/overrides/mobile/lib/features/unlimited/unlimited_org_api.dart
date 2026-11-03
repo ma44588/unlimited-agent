@@ -137,6 +137,31 @@ class PlanRow {
   int get blocked => _i(j['blocked']);
   String get now => _s(j['now']);
   double get hours => _d(j['hours']);
+
+  /// Publishing to the staging branch, or null.
+  Deploy? get deploy => j['deploy'] is Map ? Deploy(_m(j['deploy'])) : null;
+}
+
+/// One employee's publish state: building (Odoo.sh rebuilding his push), waiting, live, failed.
+class Deploy {
+  Deploy(this.j);
+  final Map<String, dynamic> j;
+  String get state => _s(j['state']);
+  String get task => _s(j['task']);
+  String get since => _s(j['since']);
+  String get branch => _s(j['branch']);
+  String get project => _s(j['project']);
+}
+
+/// A staging branch with publish activity.
+class DeployLine {
+  DeployLine(this.j);
+  final Map<String, dynamic> j;
+  String get project => _s(j['project']);
+  String get branch => _s(j['branch']);
+  bool get building => j['building'] == true;
+  String get by => _s(j['by']);
+  int get waiting => _i(j['waiting']);
 }
 
 class TeamDay {
@@ -179,7 +204,9 @@ class TodayData {
       hasTeams = j['has_teams'] == true,
       date = _s(j['date']),
       needs = [for (final n in _ms(j['needs_you'])) PlanAsk(n)],
-      teams = [for (final t in _ms(j['teams'])) TeamDay(t)];
+      teams = [for (final t in _ms(j['teams'])) TeamDay(t)],
+      deploys = [for (final d in _ms(j['deploys'])) DeployLine(d)];
+  final List<DeployLine> deploys;
   final OrgPerson me;
   final Map<String, dynamic> summary;
   final Map<String, dynamic> settings;
