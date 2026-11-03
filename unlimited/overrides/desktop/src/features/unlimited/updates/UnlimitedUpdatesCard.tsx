@@ -14,6 +14,7 @@ import { UNLIMITED_RELEASE } from "@/features/unlimited/updates/release";
 import { Button } from "@/shared/ui/button";
 
 const BASE = "https://app.unlimitedsolutions.technology";
+const IS_WINDOWS = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 type Manifest = { release: string; url: string; notes?: string; published_at?: string };
 
 function parts(tag: string): number[] {
@@ -88,11 +89,20 @@ export function UnlimitedUpdatesCard() {
               <RefreshCw className="h-3.5 w-3.5" /> Try the one-click update again
             </Button>
           ) : null}
-          <Button onClick={() => void openUrl(`${BASE}${m.url}`)} size="sm" type="button" variant={inPlace.error ? "outline" : "default"}>
+          <Button
+            onClick={() => void openUrl(IS_WINDOWS ? `${BASE}/dl/Unlimited-Agent-Setup.exe` : `${BASE}${m.url}`)}
+            size="sm"
+            type="button"
+            variant={inPlace.error ? "outline" : "default"}
+          >
             <Download className="h-3.5 w-3.5" /> Download installer
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">With the installer: open the file and drag Unlimited Agent into Applications, replacing the old one.</p>
+        <p className="text-xs text-muted-foreground">
+          {IS_WINDOWS
+            ? "With the installer: run the downloaded setup file; it replaces the old version."
+            : "With the installer: open the file and drag Unlimited Agent into Applications, replacing the old one."}
+        </p>
       </div>
     );
   } else if (latest.isError && !inPlace.checked) {

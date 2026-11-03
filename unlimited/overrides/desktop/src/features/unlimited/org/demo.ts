@@ -55,6 +55,12 @@ const rows = [
 const iso = (m: number) => new Date(Date.now() - m * 60000).toISOString();
 const settings = { tz: "Africa/Cairo", plan_at: "08:00", report_at: "17:00", escalate_minutes: 30, workdays: [6, 0, 1, 2, 3], projects: [] };
 
+const DEMO_DEPLOY: Record<string, { state: "building" | "waiting" | "live" | "failed"; task: string; since: string; branch: string; project: string }> = {
+  "ai:developer": { state: "building", task: "stock.move compute is slow", since: iso(4), branch: "test_1", project: "alfares" },
+  "ai:nour": { state: "waiting", task: "Arabic invoice layout", since: iso(2), branch: "test_1", project: "alfares" },
+  "ai:mona": { state: "live", task: "VAT setup review", since: iso(40), branch: "test_1", project: "alfares" },
+};
+
 /** Returns undefined when the path is not an org route. */
 export function orgDemo(_method: string, path: string): unknown {
   if (path === "/admin/today")
@@ -62,7 +68,9 @@ export function orgDemo(_method: string, path: string): unknown {
       date: new Date().toISOString().slice(0, 10), tz: "Africa/Cairo", me: people[0], odoo: true, has_teams: true, settings,
       summary: { tasks: 8, done: 5, blocked: 1, open: 2, percent: 63 },
       needs_you: [{ kind: "plan", id: "demo-plan", lead: people[2], tasks: 8, people: 3, since: iso(20) }],
-      teams: [{ plan: "demo-plan", status: "approved", lead: people[2], approver: people[1], decided_by: people[1], decided_at: iso(240), members: rows, notes: [] }],
+      teams: [{ plan: "demo-plan", status: "approved", lead: people[2], approver: people[1], decided_by: people[1], decided_at: iso(240),
+        members: rows.map((r) => ({ ...r, ...(DEMO_DEPLOY[r.member.id] ? { deploy: DEMO_DEPLOY[r.member.id] } : {}) })), notes: [] }],
+      deploys: [{ project: "alfares", name: "Alfares", branch: "test_1", building: true, by: "Youssef", waiting: 1 }],
     };
   if (path === "/admin/org")
     return { members: people.map((p) => ({ ...p, reports: people.filter((x) => x.reports_to === p.id).map((x) => x.id) })), settings,

@@ -13,7 +13,7 @@ import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/ui/dialog";
 
 import { odooApi } from "../odoo/api";
-import { firstName, orgApi, type PlanDetail, type PlanRow, type TeamDay, type Today } from "./api";
+import { type DeployLine, firstName, orgApi, type PlanDetail, type PlanRow, type TeamDay, type Today } from "./api";
 import { Bar, Card, errorText, hm, hours, OrgAvatar, Pill, Ring } from "./ui";
 
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -83,8 +83,13 @@ export function TodayScreen() {
               />
             </div>
             <div className="min-w-0 space-y-4">
+              {(t.deploys ?? [])
+                .filter((d) => !t.teams.some((team) => teamHasDeploy(team, d)))
+                .map((d) => (
+                  <DeployStrip d={d} key={d.project} />
+                ))}
               {t.teams.map((team) => (
-                <TeamCard key={team.plan} onOpenPlan={() => setPlan(team.plan)} team={team} />
+                <TeamCard deploys={(t.deploys ?? []).filter((d) => teamHasDeploy(team, d))} key={team.plan} onOpenPlan={() => setPlan(team.plan)} team={team} />
               ))}
               {t.teams.length === 0 && t.odoo && t.has_teams ? (
                 <Card className="px-5 py-8 text-center text-sm text-muted-foreground">
@@ -221,7 +226,49 @@ function Needs({
   );
 }
 
-function TeamCard({ team, onOpenPlan }: { team: TeamDay; onOpenPlan: () => void }) {
+function teamHasDeploy(team: TeamDay, d: DeployLine): boolean {
+  return team.members.some((r) => r.deploy?.project === d.project && (r.deploy.state === "building" || r.deploy.state === "waiting"));
+}
+
+/** One line per staging branch while someone publishes: Odoo.sh rebuilding (by whom) and how many wait. */
+function DeployStrip({ d }: { d: DeployLine }) {
+  return (
+    <div className="mb-2 flex items-start gap-2.5 rounded-xl bg-blue-50 px-3.5 py-2.5 text-sm dark:bg-blue-500/10" data-testid="deploy-strip">
+      <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", d.building ? "animate-pulse bg-blue-600" : "bg-muted-foreground/50")} />
+      <span className="min-w-0">
+        <b className="font-semibold text-foreground">{d.branch}</b>{" "}
+        <span className="text-muted-foreground">
+          {d.building ? `Odoo.sh is rebuilding${d.by ? ` (${d.by})` : ""}` : "Idle"}
+          {d.waiting ? ` · ${d.waiting} waiting to publish` : ""}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function minutesSince(iso: string): number {
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+}
+
+function DeployChip({ dep }: { dep: NonNullable<PlanRow["deploy"]> }) {
+  const time = new Date(dep.since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const [cls, text] =
+    dep.state === "building"
+      ? ["bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300", `Rebuilding ${dep.branch} · ${minutesSince(dep.since)} min`]
+      : dep.state === "waiting"
+        ? ["bg-muted text-muted-foreground", "Waiting to publish"]
+        : dep.state === "live"
+          ? ["bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300", `Live on staging ${time}`]
+          : ["bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300", `Build failed ${time}`];
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold", cls)} data-testid="deploy-chip">
+      {dep.state === "building" ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" /> : null}
+      {text}
+    </span>
+  );
+}
+
+function TeamCard({ team, deploys, onOpenPlan }: { team: TeamDay; deploys: DeployLine[]; onOpenPlan: () => void }) {
   const rows = team.members.filter((r) => r.total > 0 || team.status !== "pending");
   return (
     <section>
@@ -231,6 +278,9 @@ function TeamCard({ team, onOpenPlan }: { team: TeamDay; onOpenPlan: () => void 
           {team.status === "pending" ? "Waiting for approval" : team.status === "rejected" ? "Sent back" : "View plan"}
         </button>
       </div>
+      {deploys.map((d) => (
+        <DeployStrip d={d} key={d.project} />
+      ))}
       <Card className="divide-y divide-border/60 px-4">
         {rows.map((r) => (
           <PersonRow key={r.member.id} r={r} />
@@ -260,9 +310,18 @@ function PersonRow({ r }: { r: PlanRow }) {
           {r.hours ? <span className="text-xs text-muted-foreground">{hours(r.hours)}</span> : null}
         </div>
         <Bar className="my-1.5" value={r.total ? r.done / r.total : 0} />
-        <p className={cn("truncate text-xs", blocked && !allDone ? "text-amber-600" : "text-muted-foreground")}>
-          {allDone ? "All done" : blocked ? `Blocked: ${blocked.name}` : r.now ? `Now: ${r.now}` : "No tasks"}
-        </p>
+        {r.deploy && !(blocked && !allDone) ? (
+          <p className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <DeployChip dep={r.deploy} />
+            <span className="truncate">
+              {r.deploy.state === "building" ? `Published: ${r.deploy.task}` : r.deploy.state === "waiting" ? r.deploy.task : r.now ? `Now: ${r.now}` : r.deploy.task}
+            </span>
+          </p>
+        ) : (
+          <p className={cn("truncate text-xs", blocked && !allDone ? "text-amber-600" : "text-muted-foreground")}>
+            {allDone ? "All done" : blocked ? `Blocked: ${blocked.name}` : r.now ? `Now: ${r.now}` : "No tasks"}
+          </p>
+        )}
       </div>
     </div>
   );

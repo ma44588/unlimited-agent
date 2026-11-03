@@ -66,7 +66,11 @@ export type PlanRow = {
   now: string | null;
   hours: number;
   spent: number;
+  /** Publishing to the staging branch: building (Odoo.sh rebuilding his push), waiting (ready, next build), live, failed. */
+  deploy?: { state: "building" | "waiting" | "live" | "failed"; task: string; since: string; branch: string; project: string };
 };
+/** One staging branch with publish activity: Odoo.sh building it, who pushed, how many wait. */
+export type DeployLine = { project: string; name?: string; branch: string; building: boolean; by?: string | null; waiting: number };
 export type PlanStatus = "pending" | "approved" | "rejected";
 export type TeamDay = {
   plan: string;
@@ -89,6 +93,7 @@ export type Today = {
   summary: { tasks: number; done: number; blocked: number; open: number; percent: number };
   needs_you: PlanAsk[];
   teams: TeamDay[];
+  deploys?: DeployLine[];
 };
 export type PlanDetail = {
   id: string;
