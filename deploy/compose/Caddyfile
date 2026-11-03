@@ -11,6 +11,11 @@
     uri strip_prefix /unlimited-api
     reverse_proxy 172.30.0.1:8765
   }
+  # Unlimited: team photos (public, content-addressed file names).
+  handle /unlimited-api/avatars/* {
+    uri strip_prefix /unlimited-api
+    reverse_proxy 172.30.0.1:8765
+  }
   handle /unlimited-api/* {
     respond 404
   }

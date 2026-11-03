@@ -26,7 +26,12 @@ export type OrgPerson = {
   lead?: boolean;
   reports?: string[];
   approvers?: Record<OrgAction, string>;
+  /** Department id (see Org.departments). */
+  dept?: string;
+  /** Approvers chosen for this person, per action; anything missing follows the reporting line. */
+  approver_set?: Partial<Record<OrgAction, string>>;
 };
+export type Department = { id: string; name: string; head: string; parent: string };
 export type OrgSettings = {
   tz: string;
   plan_at: string;
@@ -36,7 +41,7 @@ export type OrgSettings = {
   projects: number[];
 };
 export type OdooLink = { kind: "company_odoo"; state: "connected" | "off" | "attention"; detail: string; url?: string; checked_at?: string };
-export type Org = { members: OrgPerson[]; settings: OrgSettings; odoo: OdooLink };
+export type Org = { members: OrgPerson[]; settings: OrgSettings; odoo: OdooLink; departments?: Department[] };
 
 export type PlanTask = {
   id: number;
@@ -119,7 +124,7 @@ export const orgApi = {
   decide: (id: string, approve: boolean, note = "", moves: { task: number; to: string }[] = []) =>
     request<PlanDetail>("POST", `/admin/plans/${enc(id)}/decide`, { decision: approve ? "approve" : "reject", note, moves }),
   draft: (lead: string, again = false) => request<PlanDetail>("POST", "/admin/plans", { lead, again }),
-  updateMember: (id: string, fields: Partial<OrgPerson>) => request<Org>("POST", `/admin/org/members/${enc(id)}`, fields),
+  updateMember: (id: string, fields: Omit<Partial<OrgPerson>, "approvers"> & { approvers?: Partial<Record<OrgAction, string>> }) => request<Org>("POST", `/admin/org/members/${enc(id)}`, fields),
   removeMember: (id: string) => request<Org>("POST", `/admin/org/members/${enc(id)}`, { action: "remove" }),
   addPerson: (fields: { pubkey: string; name: string; title?: string; reports_to?: string; approves?: OrgAction[] }) =>
     request<Org>("POST", "/admin/org/humans", fields),
@@ -127,6 +132,11 @@ export const orgApi = {
   /** The employee's own Odoo user: {} reads the status, {login, key} saves it, {action: "remove"} clears it. */
   memberOdoo: (id: string, body: { login?: string; key?: string; action?: "remove" } = {}) =>
     request<{ login: string; connected: boolean; checked_at?: string }>("POST", `/admin/org/members/${enc(id)}/odoo`, body),
+  /** Create or change a department; apply=true redraws the reporting lines from the departments. */
+  department: (body: Partial<Department> & { members?: string[]; apply?: boolean; action?: "remove" }) =>
+    request<Org>("POST", "/admin/org/departments", body),
+  /** Upload a photo (data URL of a JPG, PNG or WebP under 2 MB). */
+  photo: (id: string, dataUrl: string) => request<Org>("POST", `/admin/org/members/${enc(id)}/photo`, { data: dataUrl }),
   odooProjects: () => request<{ id: number; name: string }[]>("GET", "/admin/org/odoo-projects"),
 };
 
