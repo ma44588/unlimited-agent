@@ -13,6 +13,7 @@ import '../channels/channel_detail_page.dart';
 import '../channels/channel_management_provider.dart';
 import 'ud.dart';
 import 'unlimited_call_screen.dart';
+import 'unlimited_ai.dart';
 import 'unlimited_api.dart';
 import 'unlimited_org.dart';
 
@@ -1312,6 +1313,12 @@ physics: udScroll,
               'Company Odoo',
               '',
               () => open((_) => const UCompanyOdooScreen()),
+            ),
+            (
+              Icons.auto_awesome_outlined,
+              'AI provider',
+              '',
+              () => open((_) => const UAiProviderScreen()),
             ),
             (
               Icons.outbox_outlined,

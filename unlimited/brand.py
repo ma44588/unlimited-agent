@@ -753,6 +753,33 @@ PATCHES = [
      '          <TodaySidebarEntry />\n',
      '          <TasksSidebarEntry />\n          <TodaySidebarEntry />\n',
      "<TasksSidebarEntry />"),
+    # Settings > AI provider (under Connections): Claude accounts, usage, switching, models per employee.
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '  | "hosted-communities"\n  | "community-members"\n',
+     '  | "hosted-communities"\n  | "ai-provider"\n  | "community-members"\n',
+     '| "ai-provider"'),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '  "hosted-communities",\n  "community-members",\n',
+     '  "hosted-communities",\n  "ai-provider",\n  "community-members",\n',
+     '  "ai-provider",\n'),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '    label: "Connections",\n    icon: MessagesSquare,\n  },\n',
+     '    label: "Connections",\n    icon: MessagesSquare,\n  },\n'
+     '  {\n    value: "ai-provider",\n    label: "AI provider",\n    icon: AiProviderIcon,\n  },\n',
+     'label: "AI provider"'),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     'import { ConnectionsScreen } from "@/features/unlimited/connections/ConnectionsScreen";\n',
+     'import { ConnectionsScreen } from "@/features/unlimited/connections/ConnectionsScreen";\n'
+     'import { AiProviderIcon, AiProviderScreen } from "@/features/unlimited/ai/AiProviderScreen";\n',
+     "AiProviderScreen } from"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     '      return <ConnectionsScreen embedded />;\n',
+     '      return <ConnectionsScreen embedded />;\n    case "ai-provider":\n      return <AiProviderScreen />;\n',
+     "return <AiProviderScreen />"),
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsView.tsx",
+     '    sections: ["hosted-communities", "community-members", "relay-admin"],\n',
+     '    sections: ["hosted-communities", "ai-provider", "community-members", "relay-admin"],\n',
+     '"hosted-communities", "ai-provider"'),
 ]
 
 
