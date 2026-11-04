@@ -13,6 +13,7 @@ import '../../shared/relay/relay_provider.dart';
 import '../../shared/relay/relay_session.dart';
 import '../../shared/relay/signed_event_relay.dart';
 import 'ud.dart';
+import 'unlimited_api.dart';
 import 'unlimited_org_api.dart';
 import 'unlimited_screens.dart';
 
@@ -33,6 +34,7 @@ String _agoSec(int at) {
 
 /// What the stage means for the owner, in a few words, and its tone.
 (String, UdTone) stageLabel(String stage) => switch (stage) {
+  'needs_ok' => ('Needs your OK', UdTone.warn),
   'awaiting_approval' => ('Plan to approve', UdTone.warn),
   'in_review' => ('Ready to try', UdTone.warn),
   'planning' => ('Planning', UdTone.accent),
@@ -207,7 +209,7 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final u = Ud.of(context);
-    final (label, tone) = stageLabel(t.stage);
+    final (label, tone) = stageLabel(t.asks.isNotEmpty ? 'needs_ok' : t.stage);
     final step = _stepOf(t.stage);
     final color = udColorFor(t.project);
     return UdCard(
@@ -388,10 +390,166 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
     );
   }
 
+  final _decided = <String>{};
+
+  Future<void> _decide(TaskAsk a, bool ok) => _run(
+    ok ? 'Allowed once. Youssef carries on.' : "Rejected. Youssef won't run it.",
+    () async {
+      await UnlimitedApi(ref.read(relayConfigProvider)).decideApproval(a.id, ok);
+      _decided.add(a.id);
+      return null;
+    },
+  );
+
+  Widget _perms(Ud u, bool approving) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: UdCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            approving
+                ? 'Approving this plan also allows · ${t.perms.length}'
+                : 'Allowed with the plan',
+            style: u.sub,
+          ),
+          for (final p in t.perms)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    !approving && p.usedAt > 0
+                        ? Icons.check_circle_rounded
+                        : p.method == 'write'
+                        ? Icons.edit_rounded
+                        : Icons.play_circle_rounded,
+                    size: 20,
+                    color: !approving && p.usedAt > 0
+                        ? Ud.ok
+                        : p.method == 'write'
+                        ? Ud.warn
+                        : u.accent,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.label,
+                          textDirection: _dir(p.label),
+                          style: TextStyle(fontSize: 14, color: u.fg),
+                        ),
+                        Text(
+                          '${p.model} #${p.ids.join(',')} · staging'
+                          '${approving ? '' : (p.usedAt > 0 ? ' · done' : ' · not yet')}',
+                          style: u.sub.copyWith(fontSize: 11.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _ask(Ud u, TaskAsk a) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Ud.warn.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Ud.warn.withValues(alpha: .5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Youssef stopped · not in the approved plan · ${_agoSec(a.at)}',
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Ud.warn,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(a.title, style: u.title),
+          if (a.why.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(a.why, textDirection: _dir(a.why), style: u.sub),
+          ],
+          if (a.kind == 'change_code') ...[
+            const SizedBox(height: 8),
+            for (final (title, code, bg) in [
+              ('Now', a.oldCode, const Color(0x1ADC2626)),
+              ('After', a.newCode, const Color(0x1A16A34A)),
+            ]) ...[
+              Text(title, style: u.sub.copyWith(fontSize: 11.5)),
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(top: 3, bottom: 6),
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(maxHeight: 160),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(
+                    code.isEmpty ? '(empty)' : code,
+                    textDirection: TextDirection.ltr,
+                    style: TextStyle(
+                      fontFamily: 'Menlo',
+                      fontFamilyFallback: const ['Courier', 'monospace'],
+                      fontSize: 11.5,
+                      color: u.fg,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: UdButton(
+                  label: 'Reject',
+                  ghost: true,
+                  danger: true,
+                  small: true,
+                  onTap: _busy ? null : () => _decide(a, false),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: UdButton(
+                  label: 'Allow once',
+                  small: true,
+                  onTap: _busy ? null : () => _decide(a, true),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final u = Ud.of(context);
-    final (label, tone) = stageLabel(t.stage);
+    final asks = [
+      for (final a in t.asks)
+        if (!_decided.contains(a.id)) a,
+    ];
+    final (label, tone) = stageLabel(asks.isNotEmpty ? 'needs_ok' : t.stage);
     final approving = t.stage == 'awaiting_approval';
     final reviewing = t.stage == 'in_review';
     Widget block(String title, String text) => Padding(
@@ -430,7 +588,11 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: UdButton(
-                    label: approving ? 'Approve plan' : 'Mark done',
+                    label: approving
+                        ? (t.perms.isEmpty
+                              ? 'Approve plan'
+                              : 'Approve plan (+${t.perms.length})')
+                        : 'Mark done',
                     onTap: _busy
                         ? null
                         : approving
@@ -487,9 +649,11 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
                 ),
               ),
             ),
+          for (final a in asks) _ask(u, a),
           if (reviewing && t.result.isNotEmpty) block('Result', t.result),
           if (t.plan.isNotEmpty)
             block(approving ? 'Plan' : 'Approved plan', t.plan),
+          if (t.perms.isNotEmpty) _perms(u, approving),
           if (!reviewing && t.result.isNotEmpty) block('Result', t.result),
           if (t.body.trim().isNotEmpty) block('Description', t.body),
         ],

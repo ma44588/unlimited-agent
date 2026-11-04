@@ -31,6 +31,7 @@ import {
   useSetTaskStatusMutation,
   useTaskStages,
 } from "./taskDesk";
+import { PlanPermissions, TaskAsks } from "./TaskPermissions";
 import { TaskStepDetails } from "./TaskStepDetails";
 
 function Stepper({ stage }: { stage: TaskStage | undefined }) {
@@ -95,6 +96,8 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
     ? issue.assignees.some((p) => normalizePubkey(p) === normalizePubkey(data.developer!))
     : false;
   const awaiting = stage?.stage === "awaiting_approval";
+  const perms = stage?.perms ?? [];
+  const asks = stage?.asks ?? [];
   const reviewing = stage?.stage === "in_review";
   const focusId = awaiting ? stage?.plan_id : reviewing ? stage?.result_id : undefined;
   const focus =
@@ -136,8 +139,13 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
             {stage.round && stage.round > 1 && stage.stage !== "cancelled" ? (
               <span className="tabular-nums">Plan v{stage.round}</span>
             ) : null}
-            <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", TONE_CLASS[STAGE_TONE[stage.stage]])}>
-              {STAGE_LABEL[stage.stage]}
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs font-medium",
+                asks.length ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300" : TONE_CLASS[STAGE_TONE[stage.stage]],
+              )}
+            >
+              {asks.length ? "Needs your OK" : STAGE_LABEL[stage.stage]}
             </span>
             <span className="tabular-nums">{sinceLabel(stage.since)}</span>
           </span>
@@ -160,7 +168,16 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Task Desk is waking {dev} up…
         </p>
       ) : null}
-      {stage?.stage === "planning" || stage?.stage === "executing" || stage?.stage === "documenting" ? (
+      {asks.length ? (
+        <TaskAsks
+          asks={asks}
+          canDecide={canDecide}
+          dev={dev}
+          onAsk={() => setMode("change")}
+          onDecided={() => void stagesQuery.refetch()}
+        />
+      ) : null}
+      {!asks.length && (stage?.stage === "planning" || stage?.stage === "executing" || stage?.stage === "documenting") ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {stage.stage === "planning"
@@ -188,14 +205,24 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
         </div>
       ) : null}
 
-      {(awaiting || reviewing) && canDecide ? (
+      {perms.length && stage && stage.stage !== "planning" && stage.stage !== "cancelled" ? (
+        <PlanPermissions awaiting={awaiting} perms={perms} />
+      ) : null}
+
+      {(awaiting || reviewing || (asks.length > 0 && mode === "change")) && canDecide ? (
         mode === "change" ? (
           <div className="space-y-2">
             <Textarea
               autoFocus
               id="task-cycle-change-request"
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={awaiting ? "Write the change you want in the plan…" : `Write what ${dev} should fix…`}
+              placeholder={
+                awaiting
+                  ? "Write the change you want in the plan…"
+                  : asks.length
+                    ? `Ask ${dev} about this request…`
+                    : `Write what ${dev} should fix…`
+              }
               value={draft}
             />
             <div className="flex flex-wrap gap-2">
@@ -218,10 +245,17 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
                 <Button
                   className="bg-sky-600 text-white hover:bg-sky-600/90"
                   disabled={busy}
-                  onClick={() => void post("Approved, start", "Plan approved. The build starts now.")}
+                  onClick={() =>
+                    void post(
+                      "Approved, start",
+                      perms.length
+                        ? `Plan approved with ${perms.length} permissions. The build starts now.`
+                        : "Plan approved. The build starts now.",
+                    )
+                  }
                   size="sm"
                 >
-                  <Play /> Approve and start
+                  <Play /> {perms.length ? `Approve plan + ${perms.length} permissions` : "Approve and start"}
                 </Button>
                 <Button disabled={busy} onClick={() => setMode("change")} size="sm" variant="outline">
                   <PenLine /> Request changes

@@ -302,10 +302,39 @@ class TaskItem {
   String get problem => _s(j['problem']);
 
   /// The task waits for the owner: a plan to approve or a result to try.
-  bool get needsYou => stage == 'awaiting_approval' || stage == 'in_review';
+  bool get needsYou =>
+      stage == 'awaiting_approval' || stage == 'in_review' || asks.isNotEmpty;
+
+  /// Sensitive steps the plan lists (🔐); approving the plan allows exactly these.
+  List<TaskPerm> get perms => [for (final p in _ms(j['perms'])) TaskPerm(p)];
+
+  /// Requests outside the plan that wait for the owner.
+  List<TaskAsk> get asks => [for (final a in _ms(j['asks'])) TaskAsk(a)];
   bool get finished =>
       stage == 'done' || stage == 'documented' || stage == 'cancelled';
   bool get notStarted => stage == 'new';
+}
+
+class TaskPerm {
+  TaskPerm(this.j);
+  final Map<String, dynamic> j;
+  String get model => _s(j['model']);
+  String get method => _s(j['method']);
+  String get label => _s(j['label']);
+  List<int> get ids => [for (final x in (j['ids'] as List? ?? const [])) _i(x)];
+  int get usedAt => _i(j['used_at']);
+}
+
+class TaskAsk {
+  TaskAsk(this.j);
+  final Map<String, dynamic> j;
+  String get id => _s(j['id']);
+  int get at => _i(j['at']);
+  String get title => _s(j['title']);
+  String get kind => _s(j['kind']);
+  String get why => _s(j['why']);
+  String get oldCode => _s(j['old']);
+  String get newCode => _s(j['new']);
 }
 
 extension UnlimitedOrgApi on UnlimitedApi {

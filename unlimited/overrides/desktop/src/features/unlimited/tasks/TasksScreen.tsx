@@ -34,7 +34,7 @@ function groupOf(it: Item): Group | null {
   const s = it.stage?.stage;
   if (s === "cancelled" || it.issue.status === "Closed") return null;
   if (it.stage?.problem) return "problem";
-  if (s === "awaiting_approval" || s === "in_review") return "need";
+  if (s === "awaiting_approval" || s === "in_review" || it.stage?.asks?.length) return "need";
   if (s === "documented" || s === "done" || it.issue.status === "Done") {
     const at = it.stage?.since ?? it.issue.updatedAt;
     return Date.now() / 1000 - at < WEEK ? "done" : null;
@@ -70,7 +70,9 @@ function StageBadge({ it }: { it: Item }) {
   const s = it.stage?.stage;
   const g = groupOf(it);
   const [cls, text] =
-    s === "awaiting_approval"
+    it.stage?.asks?.length
+      ? ["bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300", "Needs your OK"]
+      : s === "awaiting_approval"
       ? ["bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300", "Approve plan"]
       : s === "in_review"
         ? ["bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300", "Review result"]
@@ -97,7 +99,7 @@ function Progress({ stage }: { stage?: TaskStage }) {
 function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPerson; selected: boolean; onClick: () => void }) {
   const g = groupOf(it);
   const pri = priorityOf(it.issue);
-  const accent = g === "problem" ? "#e5484d" : it.stage?.stage === "awaiting_approval" ? "#f59e0b" : it.stage?.stage === "in_review" ? "#3b82f6" : "transparent";
+  const accent = g === "problem" ? "#e5484d" : it.stage?.stage === "awaiting_approval" || it.stage?.asks?.length ? "#f59e0b" : it.stage?.stage === "in_review" ? "#3b82f6" : "transparent";
   return (
     <button
       className={cn(

@@ -45,6 +45,21 @@ export type TaskStage = {
   result_id?: string;
   /** Set by the server when the task is in trouble: its staging build failed, or a step ran far too long. */
   problem?: "build_failed" | "stuck" | null;
+  /** Sensitive steps listed in the plan (🔐 lines); approving the plan allows exactly these. */
+  perms?: TaskPerm[];
+  /** Requests outside the plan that wait for the owner, answered on the task. */
+  asks?: TaskAsk[];
+};
+
+export type TaskPerm = { model: string; ids: number[]; method: string; label: string; used_at?: number | null };
+export type TaskAsk = {
+  id: string;
+  at: number;
+  title: string;
+  kind: "change_code" | "change" | "run" | "delete" | "call";
+  why?: string;
+  old?: string;
+  new?: string;
 };
 
 export type TaskStages = {
@@ -71,7 +86,26 @@ export function stageFor(data: TaskStages, issueId: string): TaskStage | undefin
     { stage: "in_review", start: since - 730, end: since, seconds: 730, worker: "owner" },
   ];
   const problem = stage === "executing" && n % 3 === 0 ? (n % 2 ? "build_failed" : "stuck") : null;
-  return { stage, since, round: 1, steps, problem };
+  const perms: TaskPerm[] = [
+    { model: "ir.cron", ids: [85], method: "write", label: "تعديل كود Automatic Absence Work Entries", used_at: since - 600 },
+    { model: "ir.cron", ids: [85], method: "method_direct_trigger", label: "تشغيله مرة للتجربة", used_at: since - 400 },
+    { model: "ir.actions.server", ids: [1495], method: "run", label: "إعادة حساب قسايم أكتوبر (93 قسيمة)", used_at: null },
+  ];
+  const asks: TaskAsk[] =
+    stage === "executing" && n % 3 === 1
+      ? [
+          {
+            id: "demo-ask",
+            at: since + 60,
+            title: "Change the code of server action “Payslip: send by email”",
+            kind: "change_code",
+            why: "إيميل القسيمة لسه بيعرض سطر الغياب القديم، عاوز أشيله من كود القالب.",
+            old: "line = slip.get_line('ABS')\nbody += f\"Absence: {line}\"",
+            new: "body += render_lines(slip, exclude=['ABS_OLD'])",
+          },
+        ]
+      : [];
+  return { stage, since, round: 1, steps, problem: asks.length ? null : problem, perms, asks };
 }
 
 /** The eight steps of the cycle, in order. */
