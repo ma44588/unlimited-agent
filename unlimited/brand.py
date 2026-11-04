@@ -301,6 +301,49 @@ PATCHES = [
      "      </SettingsOptionGroupList>\n",
      "        <CallsVoiceGroup />\n      </SettingsOptionGroupList>\n",
      "<CallsVoiceGroup />"),
+    # Keychain: "unlimited-agent" instead of "buzz-desktop". The old item is one JSON blob; it is copied once and
+    # checked before the new name is used, otherwise the app keeps the old name (never a new, empty identity).
+    (DESKTOP / "src-tauri" / "src" / "app_state_keyring.rs",
+     '    } else {\n        "buzz-desktop"\n    }\n}\n\npub(super) fn migration_marker_name(service: &str, default_name: &str) -> String {\n'
+     '    if service == "buzz-desktop" || service == "buzz-desktop-dev" {\n',
+     '    } else {\n'
+     '        static SERVICE: std::sync::OnceLock<&\'static str> = std::sync::OnceLock::new();\n'
+     '        *SERVICE.get_or_init(|| if unlimited_keychain_ready() { "unlimited-agent" } else { "buzz-desktop" })\n'
+     '    }\n}\n\n'
+     '/// Unlimited Agent: copy the secrets blob from the old "buzz-desktop" item to "unlimited-agent" once.\n'
+     '/// True only when the new item holds everything (or there was nothing to copy).\n'
+     '#[cfg(feature = "system-keyring")]\n'
+     'fn unlimited_keychain_ready() -> bool {\n'
+     '    use crate::secret_store::SecretStore;\n'
+     '    let new = SecretStore::keyring("unlimited-agent");\n'
+     '    match new.load_all_readonly() {\n'
+     '        Ok(Some(_)) => return true,\n'
+     '        Err(_) => return false,\n'
+     '        Ok(None) => {}\n'
+     '    }\n'
+     '    let old = SecretStore::keyring("buzz-desktop");\n'
+     '    let map = match old.load_all_readonly() {\n'
+     '        Ok(None) => return true,\n'
+     '        Ok(Some(map)) if map.is_empty() => return true,\n'
+     '        Ok(Some(map)) => map,\n'
+     '        Err(_) => return false,\n'
+     '    };\n'
+     '    if let Err(e) = new.store_all(&map) {\n'
+     '        eprintln!("unlimited: keychain copy failed, keeping buzz-desktop: {e}");\n'
+     '        return false;\n'
+     '    }\n'
+     '    let check = SecretStore::keyring("unlimited-agent");\n'
+     '    let ok = matches!(check.load_all_readonly(), Ok(Some(ref m)) if map.iter().all(|(k, v)| m.get(k) == Some(v)));\n'
+     '    eprintln!("unlimited: copied {} keychain secrets to unlimited-agent: {}", map.len(), if ok { "ok" } else { "mismatch" });\n'
+     '    ok\n'
+     '}\n\n'
+     '#[cfg(not(feature = "system-keyring"))]\n'
+     'fn unlimited_keychain_ready() -> bool {\n'
+     '    false\n'
+     '}\n\n'
+     'pub(super) fn migration_marker_name(service: &str, default_name: &str) -> String {\n'
+     '    if service == "buzz-desktop" || service == "buzz-desktop-dev" || service == "unlimited-agent" {\n',
+     "fn unlimited_keychain_ready()"),
     # Odoo.sh sign-in inside the app (Settings > Connections): register the Rust command.
     (DESKTOP / "src-tauri" / "src" / "lib.rs",
      "mod app_menu;\n",

@@ -49,7 +49,11 @@ export type TaskStage = {
   perms?: TaskPerm[];
   /** Requests outside the plan that wait for the owner, answered on the task. */
   asks?: TaskAsk[];
+  /** Sensitive steps that ran on staging without approval. */
+  auto?: TaskAuto[];
 };
+
+export type TaskAuto = { model: string; method: string; ids: number[]; why?: string; at: number };
 
 export type TaskPerm = { model: string; ids: number[]; method: string; label: string; used_at?: number | null };
 export type TaskAsk = {
@@ -65,6 +69,8 @@ export type TaskAsk = {
 export type TaskStages = {
   enabled: boolean;
   demo?: boolean;
+  /** Sensitive steps on staging run without asking (the owner's setting). */
+  auto_approve?: boolean;
   developer?: string;
   documentation?: string;
   stages: Record<string, TaskStage>;
@@ -105,7 +111,11 @@ export function stageFor(data: TaskStages, issueId: string): TaskStage | undefin
           },
         ]
       : [];
-  return { stage, since, round: 1, steps, problem: asks.length ? null : problem, perms, asks };
+  const auto: TaskAuto[] =
+    stage === "executing" || stage === "in_review"
+      ? [{ model: "ir.cron", method: "write", ids: [85], at: since - 600 }, { model: "ir.cron", method: "method_direct_trigger", ids: [85], at: since - 400 }]
+      : [];
+  return { stage, since, round: 1, steps, problem: asks.length ? null : problem, perms, asks: data.auto_approve ? [] : asks, auto };
 }
 
 /** The eight steps of the cycle, in order. */

@@ -292,7 +292,7 @@ const minsAgo = (m: number) => new Date(Date.now() - m * 60000).toISOString();
 
 /** Preview only: stages are spread over the demo tasks by id (see stageFor in taskDesk.ts). */
 function demoTaskStages() {
-  return { enabled: true, demo: true, developer: "", documentation: "", stages: {} };
+  return { enabled: true, demo: true, auto_approve: true, developer: "", documentation: "", stages: {} };
 }
 
 async function demo<T>(method: string, path: string, body?: unknown): Promise<T> {

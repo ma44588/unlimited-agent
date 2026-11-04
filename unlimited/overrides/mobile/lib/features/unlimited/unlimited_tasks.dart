@@ -408,7 +408,9 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            approving
+            t.autoApprove
+                ? 'Sensitive steps on staging · for your info, no approval needed'
+                : approving
                 ? 'Approving this plan also allows · ${t.perms.length}'
                 : 'Allowed with the plan',
             style: u.sub,
@@ -449,6 +451,38 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _done(Ud u) => Padding(
+    padding: const EdgeInsets.only(top: 12),
+    child: UdCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Done on staging · ${t.auto.length}', style: u.sub),
+          for (final a in t.auto.reversed)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, size: 18, color: Ud.ok),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _autoLabel(a),
+                      style: TextStyle(fontSize: 13.5, color: u.fg),
+                    ),
+                  ),
+                  Text(
+                    _agoSec((a['at'] as num?)?.toInt() ?? 0),
+                    style: u.sub.copyWith(fontSize: 11.5),
                   ),
                 ],
               ),
@@ -589,7 +623,7 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
                 Expanded(
                   child: UdButton(
                     label: approving
-                        ? (t.perms.isEmpty
+                        ? (t.perms.isEmpty || t.autoApprove
                               ? 'Approve plan'
                               : 'Approve plan (+${t.perms.length})')
                         : 'Mark done',
@@ -654,6 +688,7 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
           if (t.plan.isNotEmpty)
             block(approving ? 'Plan' : 'Approved plan', t.plan),
           if (t.perms.isNotEmpty) _perms(u, approving),
+          if (t.auto.isNotEmpty) _done(u),
           if (!reviewing && t.result.isNotEmpty) block('Result', t.result),
           if (t.body.trim().isNotEmpty) block('Description', t.body),
         ],
@@ -718,4 +753,21 @@ class _ChangesSheetState extends State<_ChangesSheet> {
       ),
     );
   }
+}
+
+String _autoLabel(Map<String, dynamic> a) {
+  final model = a['model']?.toString() ?? '';
+  final what = switch (model) {
+    'ir.cron' => 'scheduled action',
+    'ir.actions.server' => 'server action',
+    _ => model,
+  };
+  final ids = (a['ids'] as List? ?? const []).join(',');
+  final target = '$what #$ids';
+  return switch (a['method']?.toString() ?? '') {
+    'write' => 'Changed $target',
+    'method_direct_trigger' || 'run' => 'Ran $target',
+    'unlink' => 'Deleted $target',
+    final m => '$m on $target',
+  };
 }

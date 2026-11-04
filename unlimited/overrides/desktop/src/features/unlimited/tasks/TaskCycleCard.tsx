@@ -31,7 +31,7 @@ import {
   useSetTaskStatusMutation,
   useTaskStages,
 } from "./taskDesk";
-import { PlanPermissions, TaskAsks } from "./TaskPermissions";
+import { DoneOnStaging, PlanPermissions, TaskAsks } from "./TaskPermissions";
 import { TaskStepDetails } from "./TaskStepDetails";
 
 function Stepper({ stage }: { stage: TaskStage | undefined }) {
@@ -98,6 +98,7 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
   const awaiting = stage?.stage === "awaiting_approval";
   const perms = stage?.perms ?? [];
   const asks = stage?.asks ?? [];
+  const autoMode = Boolean(data.auto_approve);
   const reviewing = stage?.stage === "in_review";
   const focusId = awaiting ? stage?.plan_id : reviewing ? stage?.result_id : undefined;
   const focus =
@@ -206,8 +207,9 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
       ) : null}
 
       {perms.length && stage && stage.stage !== "planning" && stage.stage !== "cancelled" ? (
-        <PlanPermissions awaiting={awaiting} perms={perms} />
+        <PlanPermissions auto={autoMode} awaiting={awaiting} perms={perms} />
       ) : null}
+      {stage?.auto?.length ? <DoneOnStaging auto={stage.auto} /> : null}
 
       {(awaiting || reviewing || (asks.length > 0 && mode === "change")) && canDecide ? (
         mode === "change" ? (
@@ -248,14 +250,14 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
                   onClick={() =>
                     void post(
                       "Approved, start",
-                      perms.length
+                      perms.length && !autoMode
                         ? `Plan approved with ${perms.length} permissions. The build starts now.`
                         : "Plan approved. The build starts now.",
                     )
                   }
                   size="sm"
                 >
-                  <Play /> {perms.length ? `Approve plan + ${perms.length} permissions` : "Approve and start"}
+                  <Play /> {perms.length && !autoMode ? `Approve plan + ${perms.length} permissions` : "Approve and start"}
                 </Button>
                 <Button disabled={busy} onClick={() => setMode("change")} size="sm" variant="outline">
                   <PenLine /> Request changes

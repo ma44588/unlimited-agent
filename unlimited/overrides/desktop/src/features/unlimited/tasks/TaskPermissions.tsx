@@ -11,7 +11,7 @@ import { odooApi } from "@/features/unlimited/odoo/api";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 
-import { sinceLabel, type TaskAsk, type TaskPerm } from "./taskDesk";
+import { sinceLabel, type TaskAsk, type TaskAuto, type TaskPerm } from "./taskDesk";
 
 function Icon({ method }: { method: string }) {
   const run = method !== "write";
@@ -27,13 +27,17 @@ function Icon({ method }: { method: string }) {
   );
 }
 
-export function PlanPermissions({ perms, awaiting }: { perms: TaskPerm[]; awaiting: boolean }) {
+export function PlanPermissions({ perms, awaiting, auto = false }: { perms: TaskPerm[]; awaiting: boolean; auto?: boolean }) {
   if (!perms.length) return null;
   return (
     <div className="rounded-lg border border-border/70 bg-background p-3.5" data-testid="task-plan-permissions">
       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <KeyRound className="h-3.5 w-3.5" />
-        {awaiting ? `Approving this plan also allows · ${perms.length}` : "Allowed with the plan"}
+        {auto
+          ? `Sensitive steps on staging · ${perms.length} · for your info, no approval needed`
+          : awaiting
+            ? `Approving this plan also allows · ${perms.length}`
+            : "Allowed with the plan"}
       </p>
       <ul className="divide-y divide-border/60">
         {perms.map((p, i) => (
@@ -163,6 +167,37 @@ export function TaskAsks({
           ) : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+const WHAT: Record<string, string> = { "ir.cron": "scheduled action", "ir.actions.server": "server action" };
+
+function autoLabel(a: TaskAuto): string {
+  const target = `${WHAT[a.model] ?? a.model} #${a.ids.join(",")}`;
+  if (a.method === "write") return `Changed ${target}`;
+  if (a.method === "method_direct_trigger" || a.method === "run") return `Ran ${target}`;
+  if (a.method === "unlink") return `Deleted ${target}`;
+  return `${a.method} on ${target}`;
+}
+
+/** Sensitive steps that ran on staging without approval, newest first. */
+export function DoneOnStaging({ auto }: { auto: TaskAuto[] }) {
+  if (!auto.length) return null;
+  return (
+    <div className="rounded-lg border border-border/70 bg-background p-3.5" data-testid="task-done-on-staging">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <Check className="h-3.5 w-3.5" /> Done on staging · {auto.length}
+      </p>
+      <ul className="divide-y divide-border/60">
+        {[...auto].reverse().map((a, i) => (
+          <li className="flex items-center gap-2.5 py-1.5 text-sm" key={i}>
+            <Icon method={a.method} />
+            <span className="min-w-0 flex-1 truncate text-foreground">{autoLabel(a)}</span>
+            <span className="text-xs text-muted-foreground">{sinceLabel(a.at)} ago</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

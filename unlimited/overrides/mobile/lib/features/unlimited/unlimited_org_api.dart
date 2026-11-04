@@ -310,6 +310,12 @@ class TaskItem {
 
   /// Requests outside the plan that wait for the owner.
   List<TaskAsk> get asks => [for (final a in _ms(j['asks'])) TaskAsk(a)];
+
+  /// Sensitive steps run on staging without asking (the owner's setting).
+  bool get autoApprove => j['auto_approve'] == true;
+
+  /// Sensitive steps that ran on staging without approval.
+  List<Map<String, dynamic>> get auto => _ms(j['auto']);
   bool get finished =>
       stage == 'done' || stage == 'documented' || stage == 'cancelled';
   bool get notStarted => stage == 'new';
