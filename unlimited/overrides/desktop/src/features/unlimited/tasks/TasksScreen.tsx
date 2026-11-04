@@ -4,7 +4,7 @@
  * approving a plan takes two clicks instead of five pages.
  */
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, CheckCircle2, ListChecks, Plus } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, ListChecks, Plus, X } from "lucide-react";
 import * as React from "react";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
@@ -28,11 +28,12 @@ const WEEK = 7 * 24 * 3600;
 
 type Item = { project: Project; repo: Repository; issue: ProjectIssue; stage?: TaskStage; color: string };
 const keyOf = (it: { repo: Repository; issue: ProjectIssue }) => `${it.repo.id}:${it.issue.id}`;
-type Group = "need" | "work" | "new" | "done";
+type Group = "problem" | "need" | "work" | "new" | "done";
 
 function groupOf(it: Item): Group | null {
   const s = it.stage?.stage;
   if (s === "cancelled" || it.issue.status === "Closed") return null;
+  if (it.stage?.problem) return "problem";
   if (s === "awaiting_approval" || s === "in_review") return "need";
   if (s === "documented" || s === "done" || it.issue.status === "Done") {
     const at = it.stage?.since ?? it.issue.updatedAt;
@@ -96,7 +97,7 @@ function Progress({ stage }: { stage?: TaskStage }) {
 function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPerson; selected: boolean; onClick: () => void }) {
   const g = groupOf(it);
   const pri = priorityOf(it.issue);
-  const accent = it.stage?.stage === "awaiting_approval" ? "#f59e0b" : it.stage?.stage === "in_review" ? "#3b82f6" : "transparent";
+  const accent = g === "problem" ? "#e5484d" : it.stage?.stage === "awaiting_approval" ? "#f59e0b" : it.stage?.stage === "in_review" ? "#3b82f6" : "transparent";
   return (
     <button
       className={cn(
@@ -125,7 +126,11 @@ function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPers
       </span>
       <span className="flex flex-col items-end gap-1.5">
         <StageBadge it={it} />
-        {g === "need" ? (
+        {g === "problem" ? (
+          <span className="text-[11px] font-semibold text-red-600 dark:text-red-400">
+            {it.stage?.problem === "build_failed" ? "Staging build failed" : `Stuck ${sinceLabel(waitingSince(it))}`}
+          </span>
+        ) : g === "need" ? (
           <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">waiting {sinceLabel(waitingSince(it))}</span>
         ) : g === "work" ? (
           <Progress stage={it.stage} />
@@ -186,7 +191,7 @@ export function TasksScreen() {
   };
 
   const visible = items.filter((it) => filter === "all" || it.project.id === filter);
-  const grouped: Record<Group, Item[]> = { need: [], work: [], new: [], done: [] };
+  const grouped: Record<Group, Item[]> = { problem: [], need: [], work: [], new: [], done: [] };
   for (const it of visible) {
     const g = groupOf(it);
     if (g) grouped[g].push(it);
@@ -195,15 +200,22 @@ export function TasksScreen() {
   grouped.work.sort((a, b) => waitingSince(b) - waitingSince(a));
   grouped.new.sort((a, b) => b.issue.createdAt - a.issue.createdAt);
   grouped.done.sort((a, b) => waitingSince(b) - waitingSince(a));
-  const flat = [...grouped.need, ...grouped.work, ...grouped.new, ...grouped.done];
-  const current = flat.find((it) => keyOf(it) === selected) ?? flat[0];
+  grouped.problem.sort((a, b) => waitingSince(a) - waitingSince(b));
+  const flat = [...grouped.problem, ...grouped.need, ...grouped.work, ...grouped.new, ...grouped.done];
+  // The side panel opens only when a task is picked, and closes with ✕, Esc or a second click.
+  const current = flat.find((it) => keyOf(it) === selected);
   const needCount = items.filter((it) => groupOf(it) === "need").length;
+  const problemCount = items.filter((it) => groupOf(it) === "problem").length;
   const loading = projectsQuery.isLoading || projects.some((p) => p.repositories.some((r) => !feeds[r.id]));
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      if (e.key === "Escape" && current) {
+        setSelected(null);
+        return;
+      }
+      if (!current || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
       const i = flat.findIndex((it) => current && keyOf(it) === keyOf(current));
       const next = flat[Math.min(flat.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))];
       if (next) {
@@ -218,13 +230,18 @@ export function TasksScreen() {
   const section = (key: Group, label: string) =>
     grouped[key].length ? (
       <section key={key}>
-        <h3 className={cn("mb-2 mt-4 px-0.5 text-[11.5px] font-bold tracking-wide", key === "need" ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground")}>
-          {key === "need" ? "● " : ""}
+        <h3
+          className={cn(
+            "mb-2 mt-4 px-0.5 text-[11.5px] font-bold tracking-wide",
+            key === "problem" ? "text-red-600 dark:text-red-400" : key === "need" ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground",
+          )}
+        >
+          {key === "need" || key === "problem" ? "● " : ""}
           {label}
         </h3>
         <div className="space-y-2">
           {grouped[key].map((it) => (
-            <TaskRow it={it} key={keyOf(it)} onClick={() => setSelected(keyOf(it))} person={personOf(it)} selected={!!current && keyOf(current) === keyOf(it)} />
+            <TaskRow it={it} key={keyOf(it)} onClick={() => setSelected((s) => (s === keyOf(it) ? null : keyOf(it)))} person={personOf(it)} selected={!!current && keyOf(current) === keyOf(it)} />
           ))}
         </div>
       </section>
@@ -232,9 +249,10 @@ export function TasksScreen() {
 
   const person = current ? personOf(current) : undefined;
   return (
-    <div className="grid h-full min-h-0 w-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]" data-testid="tasks-screen">
+    <div className={cn("grid h-full min-h-0 w-full grid-cols-1", current && "lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]")} data-testid="tasks-screen">
       {projects.flatMap((p) => p.repositories.map((r) => <RepoFeed key={r.id} onData={onData} repo={r} />))}
-      <main className="min-h-0 overflow-y-auto border-r border-border/60 bg-muted/20 px-6 py-5">
+      <main className={cn("min-h-0 overflow-y-auto bg-muted/20 px-6 py-5", current && "border-r border-border/60")}>
+        <div className={cn(!current && "mx-auto max-w-4xl")}>
         <header className="mb-4 flex items-end gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Tasks</h1>
@@ -249,9 +267,10 @@ export function TasksScreen() {
             <Plus className="h-4 w-4" /> New task
           </button>
         </header>
-        <div className="mb-4 grid grid-cols-3 gap-2.5">
+        <div className="mb-4 grid grid-cols-4 gap-2.5">
           {(
             [
+              ["problem", problemCount, "failed or stuck"],
               ["need", needCount, "need you"],
               ["work", grouped.work.length, "in progress"],
               ["done", grouped.done.length, "done this week"],
@@ -260,11 +279,24 @@ export function TasksScreen() {
             <div
               className={cn(
                 "rounded-2xl border bg-background px-4 py-3",
-                k === "need" && n > 0 ? "border-amber-300/60 bg-gradient-to-br from-amber-50 to-background dark:from-amber-500/10" : "border-border/70",
+                k === "need" && n > 0
+                  ? "border-amber-300/60 bg-gradient-to-br from-amber-50 to-background dark:from-amber-500/10"
+                  : k === "problem" && n > 0
+                    ? "border-red-300/60 bg-gradient-to-br from-red-50 to-background dark:from-red-500/10"
+                    : "border-border/70",
               )}
+              data-testid={`tasks-stat-${k}`}
               key={k}
             >
-              <b className={cn("block text-2xl tracking-tight", k === "need" && n > 0 && "text-amber-600 dark:text-amber-300")}>{n}</b>
+              <b
+                className={cn(
+                  "block text-2xl tracking-tight",
+                  k === "need" && n > 0 && "text-amber-600 dark:text-amber-300",
+                  k === "problem" && n > 0 && "text-red-600 dark:text-red-400",
+                )}
+              >
+                {n}
+              </b>
               <span className="text-xs text-muted-foreground">{label}</span>
             </div>
           ))}
@@ -292,6 +324,7 @@ export function TasksScreen() {
             </button>
           ))}
         </div>
+        {section("problem", "FAILED OR STUCK")}
         {section("need", "NEEDS YOU")}
         {section("work", "IN PROGRESS")}
         {section("new", "NOT STARTED")}
@@ -303,9 +336,10 @@ export function TasksScreen() {
           </div>
         ) : null}
         {loading && !flat.length ? <p className="mt-8 text-center text-sm text-muted-foreground">Loading tasks…</p> : null}
+        </div>
       </main>
+      {current ? (
       <aside className="hidden min-h-0 flex-col overflow-y-auto bg-background lg:flex" data-testid="tasks-detail">
-        {current ? (
           <>
             <div className="px-6 pt-5">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -321,6 +355,15 @@ export function TasksScreen() {
                   type="button"
                 >
                   Open full page <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  aria-label="Close"
+                  className="rounded-md p-1 hover:bg-muted hover:text-foreground"
+                  data-testid="tasks-detail-close"
+                  onClick={() => setSelected(null)}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
                 </button>
               </div>
               <h2 className="mt-2.5 text-xl font-bold leading-snug text-foreground" dir="auto">
@@ -344,10 +387,8 @@ export function TasksScreen() {
               <TaskCycleCard issue={current.issue} key={keyOf(current)} project={current.repo} />
             </div>
           </>
-        ) : (
-          <p className="m-auto text-sm text-muted-foreground">Pick a task to see it here.</p>
-        )}
       </aside>
+      ) : null}
       <CreateProjectIssueDialog
         initialProjectId={filter !== "all" ? filter : undefined}
         onCreated={(_p, r, issueId) => setSelected(`${r.id}:${issueId}`)}

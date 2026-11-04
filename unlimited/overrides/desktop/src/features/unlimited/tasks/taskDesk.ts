@@ -43,6 +43,8 @@ export type TaskStage = {
   history?: [number, string][];
   plan_id?: string;
   result_id?: string;
+  /** Set by the server when the task is in trouble: its staging build failed, or a step ran far too long. */
+  problem?: "build_failed" | "stuck" | null;
 };
 
 export type TaskStages = {
@@ -68,7 +70,8 @@ export function stageFor(data: TaskStages, issueId: string): TaskStage | undefin
     { stage: "executing", start: since - 1260, end: since - 730, seconds: 530, worker: "developer", tokens: t(2400, 1310000, 21800) },
     { stage: "in_review", start: since - 730, end: since, seconds: 730, worker: "owner" },
   ];
-  return { stage, since, round: 1, steps };
+  const problem = stage === "executing" && n % 3 === 0 ? (n % 2 ? "build_failed" : "stuck") : null;
+  return { stage, since, round: 1, steps, problem };
 }
 
 /** The eight steps of the cycle, in order. */

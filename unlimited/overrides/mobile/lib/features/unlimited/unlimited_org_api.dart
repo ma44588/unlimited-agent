@@ -298,6 +298,9 @@ class TaskItem {
   String get result => _s(j['result']);
   int get comments => _i(j['comments']);
 
+  /// build_failed (its staging build failed) or stuck (a step ran far too long); empty when fine.
+  String get problem => _s(j['problem']);
+
   /// The task waits for the owner: a plan to approve or a result to try.
   bool get needsYou => stage == 'awaiting_approval' || stage == 'in_review';
   bool get finished =>

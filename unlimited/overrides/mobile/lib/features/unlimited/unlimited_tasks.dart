@@ -77,9 +77,18 @@ class UTasksScreen extends StatelessWidget {
                 'Create a task in a project on your computer. Youssef plans it, you approve, he builds it on staging.',
           );
         }
-        final need = tasks.where((t) => t.needsYou).toList();
+        final bad = tasks.where((t) => t.problem.isNotEmpty).toList();
+        final need = tasks
+            .where((t) => t.needsYou && t.problem.isEmpty)
+            .toList();
         final work = tasks
-            .where((t) => !t.needsYou && !t.finished && !t.notStarted)
+            .where(
+              (t) =>
+                  !t.needsYou &&
+                  !t.finished &&
+                  !t.notStarted &&
+                  t.problem.isEmpty,
+            )
             .toList();
         final fresh = tasks.where((t) => t.notStarted).toList();
         final done = tasks.where((t) => t.finished).toList();
@@ -90,7 +99,12 @@ class UTasksScreen extends StatelessWidget {
           await reload();
         }
 
-        Widget group(String label, List<TaskItem> items, {bool hot = false}) =>
+        Widget group(
+          String label,
+          List<TaskItem> items, {
+          bool hot = false,
+          Color? dot,
+        }) =>
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -99,7 +113,7 @@ class UTasksScreen extends StatelessWidget {
                   child: Row(
                     children: [
                       if (hot) ...[
-                        const UdDot(color: Ud.warn),
+                        UdDot(color: dot ?? Ud.warn),
                         const SizedBox(width: 6),
                       ],
                       Expanded(child: Text(label, style: u.sub)),
@@ -121,7 +135,14 @@ class UTasksScreen extends StatelessWidget {
             physics: udScroll,
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
             children: [
-              _Stats(need: need.length, work: work.length, done: done.length),
+              _Stats(
+                bad: bad.length,
+                need: need.length,
+                work: work.length,
+                done: done.length,
+              ),
+              if (bad.isNotEmpty)
+                group('Failed or stuck', bad, hot: true, dot: Ud.danger),
               if (need.isNotEmpty) group('Needs you', need, hot: true),
               if (work.isNotEmpty) group('In progress', work),
               if (fresh.isNotEmpty) group('Not started', fresh),
@@ -135,7 +156,13 @@ class UTasksScreen extends StatelessWidget {
 }
 
 class _Stats extends StatelessWidget {
-  const _Stats({required this.need, required this.work, required this.done});
+  const _Stats({
+    required this.bad,
+    required this.need,
+    required this.work,
+    required this.done,
+  });
+  final int bad;
   final int need;
   final int work;
   final int done;
@@ -162,6 +189,7 @@ class _Stats extends StatelessWidget {
     return UdCard(
       child: Row(
         children: [
+          cell('$bad', 'Failed', bad > 0 ? Ud.danger : u.fg),
           cell('$need', 'Need you', need > 0 ? Ud.warn : u.fg),
           cell('$work', 'In progress', u.accent),
           cell('$done', 'Done', Ud.ok),
@@ -190,7 +218,14 @@ class _TaskCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(width: 4, color: t.needsYou ? Ud.warn : color),
+            Container(
+              width: 4,
+              color: t.problem.isNotEmpty
+                  ? Ud.danger
+                  : t.needsYou
+                  ? Ud.warn
+                  : color,
+            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
@@ -224,6 +259,19 @@ class _TaskCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: u.title,
                     ),
+                    if (t.problem.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        t.problem == 'build_failed'
+                            ? 'Staging build failed'
+                            : 'Stuck for ${_agoSec(t.since)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Ud.danger,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Row(
                       children: [
