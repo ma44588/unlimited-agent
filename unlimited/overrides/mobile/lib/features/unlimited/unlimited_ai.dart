@@ -45,6 +45,7 @@ class AiEmployee {
   String get title => _s(j['title']);
   String get model => _s(j['model']).isEmpty ? 'sonnet' : _s(j['model']);
   String get account => _s(j['account']);
+  bool get pinned => j['pinned'] == true;
 }
 
 class AiView {
@@ -61,6 +62,10 @@ class AiView {
   bool get returnFirst => settings['return_first'] != false;
   bool get alert => settings['alert'] != false;
   List<Map<String, dynamic>> get events => _ms(j['events']);
+  List<(String, String)> get models {
+    final l = [for (final m in _ms(j['models'])) (_s(m['id']), _s(m['name']))];
+    return l.isEmpty ? const [('opus', 'Opus'), ('sonnet', 'Sonnet'), ('haiku', 'Haiku')] : l;
+  }
   String get codexWhy => _s(_m(j['codex'])['why']);
 }
 
@@ -77,6 +82,13 @@ extension UnlimitedAiApi on UnlimitedApi {
       AiView(_m(await post('/admin/ai/settings', body)));
   Future<AiView> aiEmployee(String slug, Map<String, Object?> body) async =>
       AiView(_m(await post('/admin/ai/employees/${Uri.encodeComponent(slug)}', body)));
+}
+
+String _modelName(String id, List<(String, String)> models) {
+  for (final m in models) {
+    if (m.$1 == id) return m.$2.replaceFirst(' · latest', '');
+  }
+  return id;
 }
 
 String _pct(double? v) => v == null ? '—' : '${(v * 100).round()}%';
@@ -140,26 +152,6 @@ class _Bar extends StatelessWidget {
       'invalid' => ('Signed out', UdTone.warn),
       _ => ("Can't check", UdTone.neutral),
     };
-
-const _plans = <String, (List<String>, List<String>)>{
-  'Max': (
-    [
-      'Opus, Sonnet and Haiku',
-      'About 5–20× Pro usage per 5 hours',
-      'Weekly limit, resets every 7 days',
-      'No per-call bill',
-    ],
-    ['Unlimited use — it pauses at the limit', 'Codex or GPT models'],
-  ),
-  'Pro': (
-    ['Sonnet and Haiku (Opus limited)', 'A small 5-hour allowance', 'Weekly limit'],
-    ['Enough for many employees at once', 'Codex or GPT models'],
-  ),
-  'Team': (
-    ['Opus, Sonnet and Haiku', 'Per-seat allowance'],
-    ['Pooling seats into one bigger limit', 'Codex or GPT models'],
-  ),
-};
 
 class UAiProviderScreen extends ConsumerStatefulWidget {
   const UAiProviderScreen({super.key, this.initial});
@@ -242,30 +234,6 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
   Widget _claudeLogo() =>
       _logo(Icons.flare_rounded, const Color(0xFFF6E9E2), const Color(0xFFC2410C));
 
-  Widget _list(String title, List<String> items, bool yes) {
-    final u = Ud.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: u.sub.copyWith(fontSize: 11, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        for (final it in items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(yes ? Icons.check_rounded : Icons.close_rounded,
-                    size: 14, color: yes ? Ud.ok : u.muted),
-                const SizedBox(width: 6),
-                Expanded(child: Text(it, style: TextStyle(fontSize: 12.5, color: u.fg))),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
   Future<T?> _sheet<T>(String title, List<Widget> Function(BuildContext) items) {
     final u = Ud.of(context);
     return showModalBottomSheet<T>(
@@ -300,6 +268,10 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
               title: const Text('Move down'),
               onTap: () => Navigator.pop(c, 'down')),
         ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Rename'),
+            onTap: () => Navigator.pop(c, 'rename')),
+        ListTile(
             leading: const Icon(Icons.key_rounded),
             title: const Text('Reconnect'),
             onTap: () => Navigator.pop(c, 'token')),
@@ -313,8 +285,27 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
     );
     if (pick == null || !mounted) return;
     if (pick == 'token') return _tokenSheet(account: a);
+    if (pick == 'rename') return _rename(a);
     await _run(() => uApi(ref).aiAccount(a.id, {'action': pick}),
         done: pick == 'remove' ? 'Removed' : 'Saved');
+  }
+
+  Future<void> _rename(AiAccount a) async {
+    final c = TextEditingController(text: a.label);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename account'),
+        content: TextField(controller: c, autofocus: true, decoration: const InputDecoration(labelText: 'Name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    c.dispose();
+    if (name == null || name.isEmpty || name == a.label || !mounted) return;
+    await _run(() => uApi(ref).aiAccount(a.id, {'label': name}), done: 'Renamed');
   }
 
   Future<void> _tokenSheet({AiAccount? account}) async {
@@ -393,44 +384,59 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
     );
   }
 
-  Future<void> _pickModel(AiEmployee e) async {
+  Future<void> _pickModel(AiEmployee e, List<(String, String)> models) async {
     final u = Ud.of(context);
-    final m = await _sheet<String>(
-      '${e.name} · model',
-      (c) => [
-        for (final o in const [
-          ('opus', 'Opus', 'Strongest, uses the limit fastest'),
-          ('sonnet', 'Sonnet', 'Balanced'),
-          ('haiku', 'Haiku', 'Fast and light'),
-        ])
-          ListTile(
-            title: Text(o.$2),
-            subtitle: Text(o.$3),
-            trailing: e.model == o.$1 ? Icon(Icons.check_rounded, color: u.accent) : null,
-            onTap: () => Navigator.pop(c, o.$1),
+    final m = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: u.card,
+      isScrollControlled: true,
+      builder: (c) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * .75),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(title: Text('${e.name} · model', style: u.title)),
+              for (final o in models)
+                ListTile(
+                  dense: true,
+                  title: Text(o.$2),
+                  subtitle: o.$1.startsWith('claude-') ? null : const Text('Always the newest'),
+                  trailing: e.model == o.$1 ? Icon(Icons.check_rounded, color: u.accent) : null,
+                  onTap: () => Navigator.pop(c, o.$1),
+                ),
+            ],
           ),
-      ],
+        ),
+      ),
     );
     if (m == null || m == e.model || !mounted) return;
-    await _run(() => uApi(ref).aiEmployee(e.slug, {'model': m}),
-        done: '${e.name} now uses ${m[0].toUpperCase()}${m.substring(1)}');
+    await _run(() => uApi(ref).aiEmployee(e.slug, {'model': m}), done: '${e.name}: ${_modelName(m, models)}');
   }
 
-  Future<void> _pickAccount(AiEmployee e, List<AiAccount> accounts) async {
+  Future<void> _pickAccount(AiEmployee e, List<AiAccount> accounts, bool assign) async {
     final u = Ud.of(context);
     final id = await _sheet<String>(
       '${e.name} · account',
       (c) => [
+        if (!assign)
+          ListTile(
+            title: const Text('Auto'),
+            subtitle: const Text('Follows the active account'),
+            trailing: !e.pinned ? Icon(Icons.check_rounded, color: u.accent) : null,
+            onTap: () => Navigator.pop(c, ''),
+          ),
         for (final a in accounts)
           ListTile(
             title: Text(a.label),
             subtitle: Text('${a.plan} · ${_pct(a.util5)} of 5 hours'),
-            trailing: e.account == a.id ? Icon(Icons.check_rounded, color: u.accent) : null,
+            trailing: (assign || e.pinned) && e.account == a.id ? Icon(Icons.check_rounded, color: u.accent) : null,
             onTap: () => Navigator.pop(c, a.id),
           ),
       ],
     );
-    if (id == null || id == e.account || !mounted) return;
+    if (id == null || !mounted) return;
+    if (id == (assign || e.pinned ? e.account : '')) return;
     await _run(() => uApi(ref).aiEmployee(e.slug, {'account': id}), done: 'Saved');
   }
 
@@ -463,7 +469,6 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
   }
 
   Future<void> _employeeTap(AiView v, AiEmployee e) async {
-    if (!v.assign) return _pickModel(e);
     final what = await _sheet<String>(
       e.name,
       (c) => [
@@ -471,8 +476,8 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
         ListTile(title: const Text('Change account'), onTap: () => Navigator.pop(c, 'account')),
       ],
     );
-    if (what == 'model') await _pickModel(e);
-    if (what == 'account') await _pickAccount(e, v.accounts);
+    if (what == 'model') await _pickModel(e, v.models);
+    if (what == 'account') await _pickAccount(e, v.accounts, v.assign);
   }
 
   @override
@@ -509,7 +514,6 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
         accounts.where((a) => a.id == v.active).firstOrNull ?? accounts.firstOrNull;
     final allResting = accounts.isNotEmpty &&
         accounts.every((a) => a.state != 'active' && a.state != 'standby');
-    final plan = _plans[active?.plan] ?? _plans['Max']!;
     final modeLabel = v.assign
         ? 'I pick per employee'
         : v.returnFirst
@@ -670,15 +674,12 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
                 UdItem(
                   leading: UdAvatar(name: v.employees[i].name, size: 30),
                   title: Text(v.employees[i].name),
-                  subtitle: v.assign
-                      ? '${v.employees[i].title} · ${accountName(v.employees[i].account)}'
-                      : v.employees[i].title,
+                  subtitle:
+                      '${v.employees[i].title} · ${v.assign || v.employees[i].pinned ? accountName(v.employees[i].account) : 'Auto'}',
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      UdPill(
-                          v.employees[i].model[0].toUpperCase() +
-                              v.employees[i].model.substring(1),
+                      UdPill(_modelName(v.employees[i].model, v.models).replaceFirst('Claude ', ''),
                           tone: UdTone.accent),
                       Icon(Icons.chevron_right_rounded, color: u.muted),
                     ],
@@ -705,12 +706,6 @@ class _UAiProviderScreenState extends ConsumerState<UAiProviderScreen> {
                 UdPill('${accounts.length} account${accounts.length == 1 ? '' : 's'}',
                     tone: UdTone.ok),
               ]),
-              const SizedBox(height: 12),
-              _list('YOUR PLAN', ['Claude ${active?.plan ?? 'Max'}', 'Used through Claude Code'], true),
-              const SizedBox(height: 8),
-              _list('WHAT IT GIVES', plan.$1, true),
-              const SizedBox(height: 8),
-              _list('NOT INCLUDED', plan.$2, false),
               const SizedBox(height: 8),
               Text(
                 'Checked every 5 minutes. Switching restarts the employees (about a minute). '

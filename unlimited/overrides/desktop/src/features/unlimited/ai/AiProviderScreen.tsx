@@ -3,7 +3,7 @@
  * Top: what the employees run on right now and how much is left. Below: each provider full width with its plan,
  * what it gives, what it does not, and (for Claude) several accounts that take over from each other.
  */
-import { ArrowDown, ArrowUp, Asterisk, Bell, Check, KeyRound, Loader2, MoreHorizontal, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Asterisk, Bell, Check, KeyRound, Loader2, MoreHorizontal, PenLine, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/shared/lib/cn";
@@ -96,8 +96,8 @@ function Column({ title, items, tone }: { title: string; items: string[]; tone: 
   );
 }
 
-function AccountMenu({ a, first, last, onAct, onToken }: {
-  a: AiAccount; first: boolean; last: boolean; onAct: (body: Record<string, unknown>) => void; onToken: () => void;
+function AccountMenu({ a, first, last, onAct, onToken, onRename }: {
+  a: AiAccount; first: boolean; last: boolean; onAct: (body: Record<string, unknown>) => void; onToken: () => void; onRename: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -128,6 +128,7 @@ function AccountMenu({ a, first, last, onAct, onToken }: {
           {item("Use this one now", <Check className="h-3.5 w-3.5" />, () => onAct({ action: "activate" }), false, a.state === "active" || a.state === "invalid")}
           {item("Move up", <ArrowUp className="h-3.5 w-3.5" />, () => onAct({ action: "up" }), false, first)}
           {item("Move down", <ArrowDown className="h-3.5 w-3.5" />, () => onAct({ action: "down" }), false, last)}
+          {item("Rename", <PenLine className="h-3.5 w-3.5" />, onRename)}
           {item("Reconnect", <KeyRound className="h-3.5 w-3.5" />, onToken)}
           {item("Remove", <Trash2 className="h-3.5 w-3.5" />, () => {
             if (window.confirm(`Remove ${a.label}? Employees using it move to the next account.`)) onAct({ action: "remove" });
@@ -193,25 +194,11 @@ function TokenDialog({ mode, onClose, onSave }: {
   );
 }
 
-const CLAUDE_PLAN: Record<string, { gives: string[]; not: string[] }> = {
-  Max: {
-    gives: ["Opus, Sonnet and Haiku", "About 5–20× Pro usage per 5 hours", "Weekly limit, resets every 7 days", "No per-call bill"],
-    not: ["Unlimited use — it pauses at the limit", "Sharing one account between companies", "Codex or GPT models"],
-  },
-  Pro: {
-    gives: ["Sonnet and Haiku (Opus limited)", "A small 5-hour allowance", "Weekly limit", "No per-call bill"],
-    not: ["Enough for many employees at once", "Heavy Opus work", "Codex or GPT models"],
-  },
-  Team: {
-    gives: ["Opus, Sonnet and Haiku", "Per-seat allowance", "Admin console for seats"],
-    not: ["Pooling seats into one bigger limit", "Codex or GPT models"],
-  },
-};
-
 export function AiProviderScreen() {
   const [v, setV] = React.useState<AiView | null>(null);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState("");
+  const [renaming, setRenaming] = React.useState("");
   const [dialog, setDialog] = React.useState<null | { kind: "add" } | { kind: "token"; account: AiAccount }>(null);
 
   const load = React.useCallback(async () => {
@@ -249,10 +236,10 @@ export function AiProviderScreen() {
   }
 
   const accounts = [...v.accounts].sort((a, b) => a.order - b.order);
+  const models = v.models?.length ? v.models : [{ id: "opus", name: "Opus" }, { id: "sonnet", name: "Sonnet" }, { id: "haiku", name: "Haiku" }];
   const active = accounts.find((a) => a.id === v.active) ?? accounts[0];
   const allResting = accounts.length > 0 && accounts.every((a) => a.state !== "active" && a.state !== "standby");
   const nextBack = accounts.map((a) => a.resting_until ?? a.reset5 ?? 0).filter(Boolean).sort()[0] ?? null;
-  const plan = CLAUDE_PLAN[active?.plan ?? "Max"] ?? CLAUDE_PLAN.Max;
   const assign = v.settings.mode === "assign";
   const modeValue = assign ? "assign" : v.settings.return_first ? "switch-first" : "switch-stay";
 
@@ -297,9 +284,9 @@ export function AiProviderScreen() {
       <Card className="py-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-foreground">Employees</p>
-          <p className="text-xs text-muted-foreground">{assign ? "Each employee uses the account you pick" : "All employees use the active account"}</p>
+          <p className="text-xs text-muted-foreground">{assign ? "Each employee uses the account you pick" : "Auto follows the active account; pick one to keep an employee on it"}</p>
         </div>
-        <div className="mt-2 max-h-72 overflow-auto">
+        <div className="mt-2">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] text-muted-foreground">
@@ -311,18 +298,26 @@ export function AiProviderScreen() {
                 <tr className="border-t border-border/50" key={e.slug}>
                   <td className="py-2"><span className="font-medium text-foreground">{e.name}</span><span className="text-xs text-muted-foreground"> · {e.title}</span></td>
                   <td>
-                    <select className={select} disabled={!!busy} onChange={(ev) => void run(`m-${e.slug}`, () => aiApi.employee(e.slug, { model: ev.target.value }))} value={e.model || "sonnet"}>
-                      <option value="opus">Opus</option><option value="sonnet">Sonnet</option><option value="haiku">Haiku</option>
+                    <select className={cn(select, "w-44")} disabled={!!busy} onChange={(ev) => void run(`m-${e.slug}`, () => aiApi.employee(e.slug, { model: ev.target.value }))} value={e.model || "sonnet"}>
+                      <optgroup label="Always the newest">
+                        {models.filter((m) => !m.id.startsWith("claude-")).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </optgroup>
+                      <optgroup label="A fixed version">
+                        {models.filter((m) => m.id.startsWith("claude-")).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </optgroup>
+                      {models.some((m) => m.id === e.model) ? null : <option value={e.model}>{e.model}</option>}
                     </select>
                   </td>
                   <td>
-                    {assign ? (
-                      <select className={select} disabled={!!busy} onChange={(ev) => void run(`a-${e.slug}`, () => aiApi.employee(e.slug, { account: ev.target.value }))} value={e.account}>
-                        {accounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">{accounts.find((a) => a.id === e.account)?.label ?? active?.label ?? "—"}</span>
-                    )}
+                    <select
+                      className={cn(select, "w-48")}
+                      disabled={!!busy}
+                      onChange={(ev) => void run(`a-${e.slug}`, () => aiApi.employee(e.slug, { account: ev.target.value }))}
+                      value={assign || e.pinned ? e.account : ""}
+                    >
+                      {assign ? null : <option value="">Auto · {active?.label ?? "active account"}</option>}
+                      {accounts.map((a) => <option key={a.id} value={a.id}>{assign ? a.label : `Always ${a.label}`}</option>)}
+                    </select>
                   </td>
                 </tr>
               ))}
@@ -353,11 +348,6 @@ export function AiProviderScreen() {
             {accounts.length} account{accounts.length === 1 ? "" : "s"}
           </span>
         </div>
-        <div className="mt-4 grid gap-4 rounded-lg bg-muted/40 p-3 sm:grid-cols-3">
-          <Column items={[`Claude ${active?.plan ?? "Max"}`, "Paid monthly on claude.ai", "Used through Claude Code"]} title="Your plan" tone="plan" />
-          <Column items={plan.gives} title="What it gives" tone="yes" />
-          <Column items={plan.not} title="Not included" tone="no" />
-        </div>
 
         <div className="mt-4 flex items-center justify-between">
           <p className="text-xs font-semibold text-muted-foreground">Accounts · used in this order</p>
@@ -375,7 +365,21 @@ export function AiProviderScreen() {
               <tr className="border-t border-border/50" data-testid="ai-account" key={a.id}>
                 <td className="py-2.5 text-xs text-muted-foreground">{i + 1}</td>
                 <td>
-                  <p className="font-medium text-foreground">{a.label}</p>
+                  {renaming === a.id ? (
+                    <form
+                      className="flex items-center gap-1"
+                      onSubmit={(ev) => {
+                        ev.preventDefault();
+                        const label = String(new FormData(ev.currentTarget).get("label") ?? "").trim();
+                        setRenaming("");
+                        if (label && label !== a.label) void run(`acc-${a.id}`, () => aiApi.account(a.id, { label }));
+                      }}
+                    >
+                      <input autoFocus className={cn(field, "h-8 w-48")} defaultValue={a.label} name="label" onBlur={(ev) => ev.currentTarget.form?.requestSubmit()} onKeyDown={(ev) => { if (ev.key === "Escape") setRenaming(""); }} />
+                    </form>
+                  ) : (
+                    <button className="text-left font-medium text-foreground hover:underline" onClick={() => setRenaming(a.id)} title="Rename" type="button">{a.label}</button>
+                  )}
                   {a.employees.length ? <p className="text-[11px] text-muted-foreground">{a.employees.length} employee{a.employees.length === 1 ? "" : "s"}</p> : null}
                   {a.error ? <p className="text-[11px] text-red-600">{a.error}</p> : null}
                 </td>
@@ -389,6 +393,7 @@ export function AiProviderScreen() {
                     first={i === 0}
                     last={i === accounts.length - 1}
                     onAct={(body) => void run(`acc-${a.id}`, () => aiApi.account(a.id, body))}
+                    onRename={() => setRenaming(a.id)}
                     onToken={() => setDialog({ kind: "token", account: a })}
                   />
                 </td>

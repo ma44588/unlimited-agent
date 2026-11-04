@@ -20,7 +20,8 @@ export type AiAccount = {
   error: string;
   employees: string[];
 };
-export type AiEmployee = { slug: string; name: string; title: string; model: string; account: string; status: string };
+export type AiEmployee = { slug: string; name: string; title: string; model: string; account: string; status: string; pinned?: boolean };
+export type AiModel = { id: string; name: string };
 export type AiSettings = { mode: "switch" | "assign"; return_first: boolean; alert: boolean };
 export type AiView = {
   provider: "claude";
@@ -29,6 +30,7 @@ export type AiView = {
   active: string;
   employees: AiEmployee[];
   events: { at: number; text: string }[];
+  models: AiModel[];
   codex: { available: boolean; why: string };
 };
 
@@ -54,6 +56,11 @@ function demoView(): AiView {
       emp("developer", "Youssef", "Senior Odoo Developer", "opus"),
       emp("documentation", "Rami", "Documentation", "sonnet"),
       emp("bassem", "Bassem", "Project Manager", "sonnet"),
+    ],
+    models: [
+      { id: "opus", name: "Opus · latest" }, { id: "sonnet", name: "Sonnet · latest" }, { id: "haiku", name: "Haiku · latest" },
+      { id: "claude-opus-5-5", name: "Claude Opus 5.5" }, { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+      { id: "claude-haiku-5-5", name: "Claude Haiku 5.5" }, { id: "claude-opus-4-8", name: "Claude Opus 4.8" },
     ],
     events: [{ at: t - 1800, text: "Switched from mostafa@unlimited to ops@unlimited (limit reached)" }],
     codex: { available: false, why: "The employees run on Claude Code today. Codex needs a second engine in the employee image; until then it cannot take over." },
