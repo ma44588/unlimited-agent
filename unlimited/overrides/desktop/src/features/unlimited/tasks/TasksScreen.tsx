@@ -4,7 +4,7 @@
  * approving a plan takes two clicks instead of five pages.
  */
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, CheckCircle2, ListChecks, Plus, X } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Eye, FileText, ListChecks, Plus, X } from "lucide-react";
 import * as React from "react";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
@@ -16,11 +16,13 @@ import {
   useProjectsQuery,
 } from "@/features/projects/hooks";
 import { CreateProjectIssueDialog } from "@/features/projects/ui/CreateProjectIssueDialog";
+import { type AgentFile, isDemo } from "@/features/unlimited/odoo/api";
 import { orgApi, type OrgPerson } from "@/features/unlimited/org/api";
 import { OrgAvatar } from "@/features/unlimited/org/ui";
 import { cn } from "@/shared/lib/cn";
 
 import { sinceLabel, STAGE_LABEL, stageFor, type TaskStage, useTaskStages } from "./taskDesk";
+import { AgentFileViewer, useAgentFiles } from "./AgentFiles";
 import { TaskCycleCard } from "./TaskCycleCard";
 
 const PALETTE = ["#8b55c4", "#0ea5a4", "#e07a2f", "#3b82f6", "#e5484d", "#16a34a", "#d4a017", "#6366f1"];
@@ -96,22 +98,91 @@ function Progress({ stage }: { stage?: TaskStage }) {
   );
 }
 
-function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPerson; selected: boolean; onClick: () => void }) {
+/** Files the employees delivered for this task (named in the task or its replies), newest first. */
+function taskDocs(it: Item, files: AgentFile[]): AgentFile[] {
+  if (isDemo() && it.issue.title.startsWith("Speed up")) return files.slice(0, it.repo.name.length % 2 ? 1 : 2);
+  const text = [it.issue.content ?? "", ...it.issue.comments.map((c) => c.content)].join("\n");
+  return files.filter((f) => text.includes(f.name)).sort((a, b) => b.updated - a.updated);
+}
+
+/** "View document": opens the task's document straight away (a short list when there are several). */
+function ViewDocButton({ docs, onOpen }: { docs: AgentFile[]; onOpen: (name: string) => void }) {
+  const [list, setList] = React.useState(false);
+  if (!docs.length) return null;
+  return (
+    <span className="relative" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <button
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11.5px] font-semibold text-primary hover:bg-primary/10"
+        data-testid="tasks-view-doc"
+        onClick={() => (docs.length === 1 ? onOpen(docs[0].name) : setList((v) => !v))}
+        title={docs.map((d) => d.name).join("\n")}
+        type="button"
+      >
+        <FileText className="h-3.5 w-3.5" />
+        View document{docs.length > 1 ? ` · ${docs.length}` : ""}
+        <Eye className="h-3.5 w-3.5" />
+      </button>
+      {list ? (
+        <span className="absolute right-0 top-full z-20 mt-1 flex w-72 flex-col rounded-xl border border-border bg-popover p-1 shadow-lg">
+          {docs.map((d) => (
+            <button
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-muted"
+              key={d.name}
+              onClick={() => {
+                setList(false);
+                onOpen(d.name);
+              }}
+              type="button"
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate" dir="ltr">
+                {d.name}
+              </span>
+            </button>
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function TaskRow({
+  it,
+  person,
+  selected,
+  onClick,
+  docs = [],
+  onOpenDoc,
+}: {
+  it: Item;
+  person?: OrgPerson;
+  selected: boolean;
+  onClick: () => void;
+  docs?: AgentFile[];
+  onOpenDoc?: (name: string) => void;
+}) {
   const g = groupOf(it);
   const pri = priorityOf(it.issue);
   const accent = g === "problem" ? "#e5484d" : it.stage?.stage === "awaiting_approval" || it.stage?.asks?.length ? "#f59e0b" : it.stage?.stage === "in_review" ? "#3b82f6" : "transparent";
   return (
-    <button
+    <div
       className={cn(
-        "relative grid w-full grid-cols-[36px_1fr_auto] items-center gap-3 overflow-hidden rounded-2xl border bg-background py-2.5 pl-4 pr-3.5 text-left transition-shadow hover:shadow-sm",
+        "relative grid w-full cursor-pointer grid-cols-[36px_1fr_auto_auto] items-center gap-3 rounded-2xl border bg-background py-2.5 pl-4 pr-3.5 text-left transition-shadow hover:shadow-sm",
         selected ? "border-primary/40 ring-4 ring-primary/10" : "border-border/70",
         g === "done" && "opacity-70",
       )}
       data-testid="tasks-row"
       onClick={onClick}
-      type="button"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: accent }} />
+      <span className="absolute inset-y-0 left-0 w-1 rounded-l-2xl" style={{ background: accent }} />
       {person ? <OrgAvatar badge={false} person={person} size={36} /> : <span className="h-9 w-9 rounded-full bg-muted" />}
       <span className="min-w-0">
         <span className="block truncate text-[13.5px] font-semibold text-foreground" dir="auto" style={{ textAlign: "left", unicodeBidi: "plaintext" }}>
@@ -131,6 +202,7 @@ function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPers
           <span className="truncate">{person ? person.name : "Unassigned"}{it.stage?.round && it.stage.round > 1 ? ` · plan v${it.stage.round}` : ""}</span>
         </span>
       </span>
+      <ViewDocButton docs={docs} onOpen={(n) => onOpenDoc?.(n)} />
       <span className="flex flex-col items-end gap-1.5">
         <StageBadge it={it} />
         {g === "problem" ? (
@@ -143,7 +215,7 @@ function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPers
           <Progress stage={it.stage} />
         ) : null}
       </span>
-    </button>
+    </div>
   );
 }
 
@@ -159,6 +231,8 @@ export function TasksScreen() {
   const [filter, setFilter] = React.useState<string>("all");
   const [selected, setSelected] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const [doc, setDoc] = React.useState<string | null>(null);
+  const filesQuery = useAgentFiles();
 
   const colorOf = React.useMemo(() => {
     const m: Record<string, string> = {};
@@ -248,7 +322,15 @@ export function TasksScreen() {
         </h3>
         <div className="space-y-2">
           {grouped[key].map((it) => (
-            <TaskRow it={it} key={keyOf(it)} onClick={() => setSelected((s) => (s === keyOf(it) ? null : keyOf(it)))} person={personOf(it)} selected={!!current && keyOf(current) === keyOf(it)} />
+            <TaskRow
+              docs={taskDocs(it, filesQuery.data ?? [])}
+              it={it}
+              key={keyOf(it)}
+              onClick={() => setSelected((s) => (s === keyOf(it) ? null : keyOf(it)))}
+              onOpenDoc={setDoc}
+              person={personOf(it)}
+              selected={!!current && keyOf(current) === keyOf(it)}
+            />
           ))}
         </div>
       </section>
@@ -396,6 +478,7 @@ export function TasksScreen() {
           </>
       </aside>
       ) : null}
+      <AgentFileViewer name={doc} onOpenChange={(o) => !o && setDoc(null)} />
       <CreateProjectIssueDialog
         initialProjectId={filter !== "all" ? filter : undefined}
         onCreated={(_p, r, issueId) => setSelected(`${r.id}:${issueId}`)}
