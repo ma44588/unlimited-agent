@@ -39,6 +39,7 @@ String _agoSec(int at) {
   'in_review' => ('Ready to try', UdTone.warn),
   'planning' => ('Planning', UdTone.accent),
   'executing' => ('Building', UdTone.accent),
+  'setting_up' => ('Setting up', UdTone.accent),
   'documenting' => ('Writing the summary', UdTone.accent),
   'documented' || 'done' => ('Done', UdTone.ok),
   'cancelled' => ('Cancelled', UdTone.neutral),
@@ -209,7 +210,7 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final u = Ud.of(context);
-    final (label, tone) = stageLabel(t.asks.isNotEmpty ? 'needs_ok' : t.stage);
+    final (label, tone) = stageLabel(_shown(t));
     final step = _stepOf(t.stage);
     final color = udColorFor(t.project);
     return UdCard(
@@ -278,6 +279,10 @@ class _TaskCard extends StatelessWidget {
                     Row(
                       children: [
                         UdPill(label, tone: tone),
+                        if (t.kind == 'setup' || t.kind == 'both') ...[
+                          const SizedBox(width: 6),
+                          _KindChip(t.kind),
+                        ],
                         const SizedBox(width: 8),
                         if (t.workerName.isNotEmpty && !t.finished)
                           Expanded(
@@ -583,7 +588,9 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
       for (final a in t.asks)
         if (!_decided.contains(a.id)) a,
     ];
-    final (label, tone) = stageLabel(asks.isNotEmpty ? 'needs_ok' : t.stage);
+    final (label, tone) = stageLabel(
+      asks.isNotEmpty ? 'needs_ok' : _shown(t),
+    );
     final approving = t.stage == 'awaiting_approval';
     final reviewing = t.stage == 'in_review';
     Widget block(String title, String text) => Padding(
@@ -657,6 +664,10 @@ class _UTaskScreenState extends ConsumerState<UTaskScreen> {
           Row(
             children: [
               UdPill(label, tone: tone),
+              if (t.kind.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                _KindChip(t.kind),
+              ],
               if (t.round > 1) ...[
                 const SizedBox(width: 6),
                 UdPill('Version ${t.round}'),
@@ -770,4 +781,34 @@ String _autoLabel(Map<String, dynamic> a) {
     'unlink' => 'Deleted $target',
     final m => '$m on $target',
   };
+}
+
+/// The stage name the owner sees: "Setting up" for configuration work, "Needs your OK" when asked.
+String _shown(TaskItem t) {
+  if (t.asks.isNotEmpty) return 'needs_ok';
+  if (t.stage == 'executing' && t.kind == 'setup') return 'setting_up';
+  return t.stage;
+}
+
+/// Code (module change + rebuild) or Setup (staging settings only), decided by the employee in the plan.
+class _KindChip extends StatelessWidget {
+  const _KindChip(this.kind);
+  final String kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final (text, bg, fg) = switch (kind) {
+      'setup' => ('Setup', const Color(0x1F0D9488), const Color(0xFF0F766E)),
+      'both' => ('Code + Setup', const Color(0x1F0D9488), const Color(0xFF0F766E)),
+      _ => ('Code', const Color(0x1F7C3AED), const Color(0xFF6D28D9)),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
+      ),
+    );
+  }
 }

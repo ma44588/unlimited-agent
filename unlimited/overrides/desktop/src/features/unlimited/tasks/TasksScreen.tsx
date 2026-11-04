@@ -79,7 +79,7 @@ function StageBadge({ it }: { it: Item }) {
         : g === "done"
           ? ["bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", "✓ Done"]
           : s
-            ? ["bg-muted text-muted-foreground", `${STAGE_LABEL[s]} · ${sinceLabel(it.stage?.since)}`]
+            ? ["bg-muted text-muted-foreground", `${s === "executing" && it.stage?.kind === "setup" ? "Setting up" : STAGE_LABEL[s]} · ${sinceLabel(it.stage?.since)}`]
             : ["bg-muted text-muted-foreground", "Not started"];
   return <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold", cls)}>{text}</span>;
 }
@@ -120,6 +120,11 @@ function TaskRow({ it, person, selected, onClick }: { it: Item; person?: OrgPers
         <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
           <Dot color={it.color} />
           <span className="font-semibold text-foreground/80">{it.project.name}</span>
+          {it.stage?.kind && it.stage.kind !== "code" ? (
+            <span className="rounded-md bg-teal-50 px-1.5 text-[10.5px] font-bold text-teal-700 dark:bg-teal-500/10 dark:text-teal-300">
+              {it.stage.kind === "both" ? "CODE + SETUP" : "SETUP"}
+            </span>
+          ) : null}
           {pri ? (
             <span className="rounded-md bg-red-50 px-1.5 text-[10.5px] font-bold uppercase text-red-700 dark:bg-red-500/10 dark:text-red-300">{pri}</span>
           ) : null}

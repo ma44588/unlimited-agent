@@ -20,12 +20,13 @@ import { normalizePubkey } from "@/shared/lib/pubkey";
 import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
 import {
-  activeStepIndex,
+  activeIn,
+  KIND_LABEL,
   sinceLabel,
   STAGE_LABEL,
   STAGE_TONE,
   stageFor,
-  TASK_STEPS,
+  stepsFor,
   type TaskStage,
   TONE_CLASS,
   useSetTaskStatusMutation,
@@ -35,13 +36,19 @@ import { DoneOnStaging, PlanPermissions, TaskAsks } from "./TaskPermissions";
 import { TaskStepDetails } from "./TaskStepDetails";
 
 function Stepper({ stage }: { stage: TaskStage | undefined }) {
-  const active = activeStepIndex(stage?.stage);
+  const steps = stepsFor(stage?.kind);
+  const { active, exec } = activeIn(steps, stage?.stage);
   const executing = stage?.stage === "executing";
+  const inExec = (i: number) => executing && i >= exec[0] && i <= exec[1];
   return (
-    <ol className="grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-8" data-testid="task-cycle-steps">
-      {TASK_STEPS.map((step, i) => {
-        const isActive = i === active || (executing && i >= 3 && i <= 5);
-        const isDone = active > i && !(executing && i >= 3 && i <= 5);
+    <ol
+      className="grid gap-x-2 gap-y-3"
+      data-testid="task-cycle-steps"
+      style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+    >
+      {steps.map((step, i) => {
+        const isActive = i === active || inExec(i);
+        const isDone = active > i && !inExec(i);
         return (
           <li className="flex min-w-0 flex-col items-center gap-1.5 text-center" key={step.key}>
             <span
@@ -134,7 +141,22 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
       dir="ltr"
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-foreground">Task cycle</h4>
+        <h4 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          Task cycle
+          {stage?.kind
+            ? KIND_LABEL[stage.kind].map((k) => (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                    k === "Code" ? "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300" : "bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300",
+                  )}
+                  key={k}
+                >
+                  {k}
+                </span>
+              ))
+            : null}
+        </h4>
         {stage ? (
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             {stage.round && stage.round > 1 && stage.stage !== "cancelled" ? (
@@ -146,7 +168,7 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
                 asks.length ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300" : TONE_CLASS[STAGE_TONE[stage.stage]],
               )}
             >
-              {asks.length ? "Needs your OK" : STAGE_LABEL[stage.stage]}
+              {asks.length ? "Needs your OK" : stage.stage === "executing" && stage.kind === "setup" ? "Setting up" : STAGE_LABEL[stage.stage]}
             </span>
             <span className="tabular-nums">{sinceLabel(stage.since)}</span>
           </span>
@@ -183,7 +205,9 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {stage.stage === "planning"
             ? `${dev} is studying the database, the code and the workflow, and writing the plan.`
-            : stage.stage === "executing"
+            : stage.stage === "executing" && stage.kind === "setup"
+              ? `${dev} is setting it up on staging (no code, no rebuild), testing it and writing the production steps.`
+              : stage.stage === "executing"
               ? `${dev} is building on staging, following the build and testing it.`
               : `${doc} is writing the team summary.`}
         </p>

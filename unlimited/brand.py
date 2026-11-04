@@ -301,6 +301,11 @@ PATCHES = [
      "      </SettingsOptionGroupList>\n",
      "        <CallsVoiceGroup />\n      </SettingsOptionGroupList>\n",
      "<CallsVoiceGroup />"),
+    # Task types: a fourth type for implementation work (the employee still decides code or setup in the plan).
+    (DESKTOP / "src" / "features" / "projects" / "projectTaskCategories.ts",
+     '  { label: "Improvement", value: "improvement" },\n] as const;',
+     '  { label: "Improvement", value: "improvement" },\n  { label: "Implementation", value: "implementation" },\n] as const;',
+     '"implementation"'),
     # Keychain: "unlimited-agent" instead of "buzz-desktop". The old item is one JSON blob; it is copied once and
     # checked before the new name is used, otherwise the app keeps the old name (never a new, empty identity).
     (DESKTOP / "src-tauri" / "src" / "app_state_keyring.rs",

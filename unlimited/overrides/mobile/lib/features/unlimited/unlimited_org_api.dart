@@ -314,6 +314,9 @@ class TaskItem {
   /// Sensitive steps run on staging without asking (the owner's setting).
   bool get autoApprove => j['auto_approve'] == true;
 
+  /// code | setup | both — how the employee does it (from the plan); empty before the plan.
+  String get kind => _s(j['kind']);
+
   /// Sensitive steps that ran on staging without approval.
   List<Map<String, dynamic>> get auto => _ms(j['auto']);
   bool get finished =>

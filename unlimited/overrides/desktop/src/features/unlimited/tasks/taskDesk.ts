@@ -51,7 +51,11 @@ export type TaskStage = {
   asks?: TaskAsk[];
   /** Sensitive steps that ran on staging without approval. */
   auto?: TaskAuto[];
+  /** How the employee does it, from the plan: code (module + rebuild), setup (staging settings only) or both. */
+  kind?: TaskKind;
 };
+
+export type TaskKind = "code" | "setup" | "both";
 
 export type TaskAuto = { model: string; method: string; ids: number[]; why?: string; at: number };
 
@@ -115,7 +119,8 @@ export function stageFor(data: TaskStages, issueId: string): TaskStage | undefin
     stage === "executing" || stage === "in_review"
       ? [{ model: "ir.cron", method: "write", ids: [85], at: since - 600 }, { model: "ir.cron", method: "method_direct_trigger", ids: [85], at: since - 400 }]
       : [];
-  return { stage, since, round: 1, steps, problem: asks.length ? null : problem, perms, asks: data.auto_approve ? [] : asks, auto };
+  const kind: TaskKind = (["code", "setup", "both"] as const)[n % 3];
+  return { stage, since, round: 1, steps, problem: asks.length ? null : problem, perms, asks: data.auto_approve ? [] : asks, auto, kind };
 }
 
 /** The eight steps of the cycle, in order. */
@@ -129,6 +134,46 @@ export const TASK_STEPS: { key: string; label: string; who: "you" | "agent" | "a
   { key: "in_review", label: "Your review", who: "you" },
   { key: "documenting", label: "Team summary", who: "agent" },
 ];
+
+type Step = { key: string; label: string; who: "you" | "agent" | "auto"; exec?: boolean };
+
+/** The cycle for each kind of work. `exec` steps all happen while the stage is "executing". */
+export function stepsFor(kind: TaskKind | undefined): Step[] {
+  const head: Step[] = TASK_STEPS.slice(0, 3);
+  const tail: Step[] = [
+    { key: "in_review", label: "Your review", who: "you" },
+    { key: "documenting", label: "Team summary", who: "agent" },
+  ];
+  const build: Step[] = [
+    { key: "executing", label: "Build", who: "agent", exec: true },
+    { key: "build", label: "Deploy", who: "auto", exec: true },
+  ];
+  const setup: Step = { key: "setup", label: "Setup on staging", who: "agent", exec: true };
+  const test: Step = { key: "testing", label: "Test", who: "agent", exec: true };
+  if (kind === "setup")
+    return [...head, setup, test, { key: "prod_steps", label: "Production steps", who: "agent", exec: true }, ...tail];
+  if (kind === "both") return [...head, ...build, setup, test, ...tail];
+  return [...head, ...build, test, ...tail];
+}
+
+/** Active step index in `steps` and the range of steps covered by "executing". */
+export function activeIn(steps: Step[], stage: TaskStageKey | undefined): { active: number; exec: [number, number] } {
+  const first = steps.findIndex((s) => s.exec);
+  const last = steps.length - 1 - [...steps].reverse().findIndex((s) => s.exec);
+  const at = (key: string) => steps.findIndex((s) => s.key === key);
+  const active =
+    stage === undefined ? 0
+    : stage === "planning" ? 1
+    : stage === "awaiting_approval" ? 2
+    : stage === "executing" ? first
+    : stage === "in_review" ? at("in_review")
+    : stage === "documenting" ? at("documenting")
+    : stage === "documented" || stage === "done" ? steps.length
+    : -1;
+  return { active, exec: [first, last] };
+}
+
+export const KIND_LABEL: Record<TaskKind, string[]> = { code: ["Code"], setup: ["Setup"], both: ["Code", "Setup"] };
 
 /** Index of the active step (0-based); executing covers code, build and tests (steps 3-5). */
 export function activeStepIndex(stage: TaskStageKey | undefined): number {
