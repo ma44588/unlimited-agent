@@ -180,6 +180,8 @@ class TeamDay {
   String get plan => _s(j['plan']);
   String get status => _s(j['status']);
   String get decidedAt => _s(j['decided_at']);
+  /// Set for the "Project tasks" block (tasks from the projects, not a lead's plan).
+  String get title => _s(j['title']);
   List<String> get notes => [
     for (final n in (j['notes'] as List? ?? const [])) _s(n),
   ];
@@ -276,7 +278,42 @@ class PlanDetail {
   ];
 }
 
+/// A project task from the Task Desk (Youssef plans and builds it, Rami documents it).
+class TaskItem {
+  TaskItem(this.j);
+  final Map<String, dynamic> j;
+  String get id => _s(j['id']);
+  String get title => _s(j['title']);
+  String get body => _s(j['body']);
+  String get stage => _s(j['stage']);
+  int get since => _i(j['since']);
+  int get createdAt => _i(j['created_at']);
+  int get round => _i(j['round']);
+  String get project => _s(j['project']);
+  String get buzzId => _s(j['buzz_id']);
+  String get repoAddress => _s(j['repo_address']);
+  String get developer => _s(j['developer']);
+  String get workerName => _s(j['worker_name']);
+  String get plan => _s(j['plan']);
+  String get result => _s(j['result']);
+  int get comments => _i(j['comments']);
+
+  /// The task waits for the owner: a plan to approve or a result to try.
+  bool get needsYou => stage == 'awaiting_approval' || stage == 'in_review';
+  bool get finished =>
+      stage == 'done' || stage == 'documented' || stage == 'cancelled';
+  bool get notStarted => stage == 'new';
+}
+
 extension UnlimitedOrgApi on UnlimitedApi {
+  Future<List<TaskItem>> tasks() async => [
+    for (final t in _ms(_m(await get('/admin/tasks/list'))['tasks']))
+      TaskItem(t),
+  ];
+
+  Future<int> tasksWaiting() async =>
+      _i(_m(await get('/admin/tasks/waiting'))['count']);
+
   Future<OrgData> org() async => OrgData(_m(await get('/admin/org')));
 
   Future<TodayData> today() async => TodayData(_m(await get('/admin/today')));

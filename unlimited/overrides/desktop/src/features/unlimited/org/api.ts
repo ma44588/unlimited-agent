@@ -81,6 +81,8 @@ export type TeamDay = {
   decided_at?: string | null;
   members: PlanRow[];
   notes: string[];
+  /** Set for the "Project tasks" block (tasks from the projects in the app, not from a lead's plan). */
+  title?: string;
 };
 export type PlanAsk = { kind: "plan"; id: string; lead: OrgPerson; tasks: number; people: number; since: string };
 export type Today = {

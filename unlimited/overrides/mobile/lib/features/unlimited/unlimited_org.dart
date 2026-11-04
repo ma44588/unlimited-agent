@@ -14,6 +14,7 @@ import 'ud.dart';
 import 'unlimited_api.dart';
 import 'unlimited_org_api.dart';
 import 'unlimited_screens.dart';
+import 'unlimited_tasks.dart';
 
 // ---------------------------------------------------------------- pieces
 const _weekdays = [
@@ -257,16 +258,20 @@ Widget _card(BuildContext context, List<Widget> rows) => UdCard(
 
 // ---------------------------------------------------------------- Today
 class _TodayLoad {
-  _TodayLoad(this.today, this.board);
+  _TodayLoad(this.today, this.board, this.tasksWaiting);
   final TodayData today;
   final UBoard? board;
+
+  /// Project tasks waiting for the owner; -1 when the server has no Task Desk.
+  final int tasksWaiting;
 }
 
 Future<_TodayLoad> _loadToday(UnlimitedApi api) async {
   final boardF = loadBoard(
     api,
   ).then<UBoard?>((b) => b).catchError((Object _) => null);
-  return _TodayLoad(await api.today(), await boardF);
+  final waitingF = api.tasksWaiting().catchError((Object _) => -1);
+  return _TodayLoad(await api.today(), await boardF, await waitingF);
 }
 
 class UTodayScreen extends ConsumerWidget {
@@ -338,6 +343,21 @@ class UTodayScreen extends ConsumerWidget {
                         'Pick a lead and who reports to them. The lead drafts a plan every morning.',
                     action: 'Open org chart',
                     onTap: onOpenTeam,
+                  ),
+                ),
+              if (l.tasksWaiting >= 0 && t.me.isOwner)
+                UEnter(
+                  index: 2,
+                  child: _TasksEntry(
+                    waiting: l.tasksWaiting,
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const UTasksScreen(),
+                        ),
+                      );
+                      await reload();
+                    },
                   ),
                 ),
               ..._needs(context, ref, t, b, reload),
@@ -662,6 +682,58 @@ class _SetupCard extends StatelessWidget {
   }
 }
 
+/// The way into every project task from Today, with how many wait for the owner.
+class _TasksEntry extends StatelessWidget {
+  const _TasksEntry({required this.waiting, required this.onTap});
+  final int waiting;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final u = Ud.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: UdCard(
+        onTap: onTap,
+        highlight: waiting > 0,
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: waiting > 0 ? Ud.warn.withValues(alpha: .13) : u.accentSoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.checklist_rounded,
+                size: 20,
+                color: waiting > 0 ? Ud.warn : u.accent,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tasks', style: u.title),
+                  Text(
+                    waiting > 0
+                        ? '$waiting waiting for you to approve or try'
+                        : 'All project tasks in one place',
+                    style: u.sub,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: u.muted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 bool _teamHasDeploy(TeamDay team, DeployLine d) => team.rows.any((r) {
   final dep = r.deploy;
   return dep != null &&
@@ -800,7 +872,9 @@ class _TeamCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  lead == null ? 'Team' : "${lead.first}'s team",
+                  lead == null
+                      ? (team.title.isEmpty ? 'Team' : team.title)
+                      : "${lead.first}'s team",
                   style: u.sub,
                 ),
               ),

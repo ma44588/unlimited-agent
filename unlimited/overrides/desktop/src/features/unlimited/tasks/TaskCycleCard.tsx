@@ -3,6 +3,7 @@
  * test result when it is waiting for the owner, and the decision buttons.
  */
 import { Check, CircleSlash, Loader2, PenLine, Play, RotateCcw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -12,6 +13,7 @@ import {
   useCreateProjectIssueCommentMutation,
 } from "@/features/projects/hooks";
 import { ProjectRichContent } from "@/features/projects/ui/ProjectRichContent";
+import { orgApi } from "@/features/unlimited/org/api";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { cn } from "@/shared/lib/cn";
 import { normalizePubkey } from "@/shared/lib/pubkey";
@@ -76,6 +78,9 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
   const setStatus = useSetTaskStatusMutation(project);
   const [mode, setMode] = React.useState<"idle" | "change">("idle");
   const [draft, setDraft] = React.useState("");
+  const org = useQuery({ queryKey: ["unlimited", "org"], queryFn: () => orgApi.org(), retry: false, staleTime: 60_000 });
+  const dev = org.data?.members.find((m) => m.id === "ai:developer")?.name ?? "Developer";
+  const doc = org.data?.members.find((m) => m.id === "ai:documentation")?.name ?? "Documentation";
 
   const data = stagesQuery.data;
   if (!data?.enabled) return null;
@@ -112,7 +117,7 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
   async function close(status: "done" | "closed") {
     try {
       await setStatus.mutateAsync({ issue, status });
-      toast.success(status === "done" ? "Closed as Done. Documentation will write the team summary." : "Task cancelled.");
+      toast.success(status === "done" ? `Closed as Done. ${doc} will write the team summary.` : "Task cancelled.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not update the task.");
     }
@@ -147,22 +152,22 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
 
       {!stage && !developerAssigned ? (
         <p className="text-sm text-muted-foreground">
-          Assign the task to <span className="font-medium text-foreground">Developer</span> in Assignees to start the plan.
+          Assign the task to <span className="font-medium text-foreground">{dev}</span> in Assignees to start the plan.
         </p>
       ) : null}
       {!stage && developerAssigned ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Task Desk is waking Developer up…
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Task Desk is waking {dev} up…
         </p>
       ) : null}
       {stage?.stage === "planning" || stage?.stage === "executing" || stage?.stage === "documenting" ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {stage.stage === "planning"
-            ? "Developer is studying the database, the code and the workflow, and writing the plan."
+            ? `${dev} is studying the database, the code and the workflow, and writing the plan.`
             : stage.stage === "executing"
-              ? "Developer is building on stag, following the build and testing on staging."
-              : "Documentation is writing the team summary."}
+              ? `${dev} is building on staging, following the build and testing it.`
+              : `${doc} is writing the team summary.`}
         </p>
       ) : null}
 
@@ -190,13 +195,13 @@ export function TaskCycleCard({ issue, project }: { issue: ProjectIssue; project
               autoFocus
               id="task-cycle-change-request"
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={awaiting ? "Write the change you want in the plan…" : "Write what Developer should fix…"}
+              placeholder={awaiting ? "Write the change you want in the plan…" : `Write what ${dev} should fix…`}
               value={draft}
             />
             <div className="flex flex-wrap gap-2">
               <Button
                 disabled={busy || draft.trim().length < 3}
-                onClick={() => void post(draft.trim(), "Sent. Developer will come back with a new version.")}
+                onClick={() => void post(draft.trim(), `Sent. ${dev} will come back with a new version.`)}
                 size="sm"
               >
                 <PenLine /> Send

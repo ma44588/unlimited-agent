@@ -2,9 +2,11 @@
  * Unlimited Agent — per-stage details of a task: who worked on each stage, when it started,
  * how long it took and the tokens the server employee used in it.
  */
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
+import { orgApi } from "@/features/unlimited/org/api";
 import { cn } from "@/shared/lib/cn";
 import { STAGE_LABEL, type TaskStepDetail, type TaskStepTokens } from "./taskDesk";
 
@@ -56,6 +58,12 @@ function TokensCell({ t }: { t?: TaskStepTokens }) {
 }
 
 export function TaskStepDetails({ steps }: { steps: TaskStepDetail[] }) {
+  const org = useQuery({ queryKey: ["unlimited", "org"], queryFn: () => orgApi.org(), retry: false, staleTime: 60_000 });
+  const names: Record<TaskStepDetail["worker"], string> = {
+    developer: org.data?.members.find((m) => m.id === "ai:developer")?.name ?? WORKER.developer,
+    documentation: org.data?.members.find((m) => m.id === "ai:documentation")?.name ?? WORKER.documentation,
+    owner: WORKER.owner,
+  };
   const [open, setOpen] = React.useState(true);
   const rows = steps.filter((s) => !["documented", "cancelled", "done"].includes(s.stage));
   if (rows.length === 0) return null;
@@ -103,7 +111,7 @@ export function TaskStepDetails({ steps }: { steps: TaskStepDetail[] }) {
                   {STAGE_LABEL[s.stage] ?? s.stage}
                   {s.end === null ? <span className="ms-1.5 text-amber-600 dark:text-amber-400">• running</span> : null}
                 </td>
-                <td className="px-3 py-1.5 text-muted-foreground">{WORKER[s.worker]}</td>
+                <td className="px-3 py-1.5 text-muted-foreground">{names[s.worker]}</td>
                 <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{clock(s.start)}</td>
                 <td className="px-3 py-1.5 tabular-nums">{duration(seconds(s))}</td>
                 <td className="px-3 py-1.5">

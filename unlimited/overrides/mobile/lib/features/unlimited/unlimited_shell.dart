@@ -118,9 +118,11 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
           .today()
           .then((t) => t.needs.length)
           .catchError((Object _) => 0);
+      final tasksF = api.tasksWaiting().catchError((Object _) => 0);
       final n =
           await unlimitedPendingCount(api).catchError((Object _) => 0) +
-          await plansF;
+          await plansF +
+          await tasksF;
       if (mounted && n != _pending) setState(() => _pending = n);
     } catch (_) {
       if (mounted && _pending != 0) setState(() => _pending = 0);

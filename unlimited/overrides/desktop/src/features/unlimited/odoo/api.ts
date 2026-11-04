@@ -216,6 +216,7 @@ export const odooApi = {
     request<{ bot?: string; paired?: boolean; pair_link?: string | null }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/telegram`, input),
   serverAgentLogs: (slug: string, lines = 400) =>
     request<{ slug: string; log: string }>("POST", `/admin/server-agents/${encodeURIComponent(slug)}/action`, { do: "logs", lines }),
+  tasksWaiting: () => request<{ count: number; by_buzz: Record<string, number> }>("GET", "/admin/tasks/waiting"),
   taskStages: (buzzId: string) =>
     request<import("@/features/unlimited/tasks/taskDesk").TaskStages>(
       "GET",

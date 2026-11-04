@@ -269,14 +269,21 @@ function DeployChip({ dep }: { dep: NonNullable<PlanRow["deploy"]> }) {
 }
 
 function TeamCard({ team, deploys, onOpenPlan }: { team: TeamDay; deploys: DeployLine[]; onOpenPlan: () => void }) {
+  const navigate = useNavigate();
   const rows = team.members.filter((r) => r.total > 0 || team.status !== "pending");
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <h3 className="text-xs font-semibold text-muted-foreground">{team.lead ? `${firstName(team.lead)}'s team` : "Team"}</h3>
-        <button className="text-xs font-semibold text-primary hover:underline" onClick={onOpenPlan} type="button">
-          {team.status === "pending" ? "Waiting for approval" : team.status === "rejected" ? "Sent back" : "View plan"}
-        </button>
+        <h3 className="text-xs font-semibold text-muted-foreground">{team.title ?? (team.lead ? `${firstName(team.lead)}'s team` : "Team")}</h3>
+        {team.title ? (
+          <button className="text-xs font-semibold text-primary hover:underline" onClick={() => void navigate({ to: "/tasks" as never })} type="button">
+            Open Tasks
+          </button>
+        ) : (
+          <button className="text-xs font-semibold text-primary hover:underline" onClick={onOpenPlan} type="button">
+            {team.status === "pending" ? "Waiting for approval" : team.status === "rejected" ? "Sent back" : "View plan"}
+          </button>
+        )}
       </div>
       {deploys.map((d) => (
         <DeployStrip d={d} key={d.project} />
