@@ -3,6 +3,7 @@
  * plans (the connector decides); Team is owner-only.
  */
 import { useQuery } from "@tanstack/react-query";
+import * as React from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { ListChecks, Network, Sun } from "lucide-react";
 
@@ -12,6 +13,7 @@ import { SidebarMenuButton, SidebarMenuItem } from "@/shared/ui/sidebar";
 import { SidebarMenuLabel } from "@/shared/ui/sidebar-menu-label";
 
 import { orgApi } from "./api";
+import { setUnlimitedEmployees } from "./employeePubkeys";
 
 export function TodaySidebarEntry() {
   const navigate = useNavigate();
@@ -65,6 +67,9 @@ export function TeamSidebarEntry() {
   const navigate = useNavigate();
   const location = useLocation();
   const org = useQuery({ queryKey: ["unlimited", "org"], queryFn: () => orgApi.org(), retry: false, staleTime: 30_000 });
+  React.useEffect(() => {
+    if (org.data) setUnlimitedEmployees(org.data.members.filter((m) => m.kind === "ai" && m.pubkey).map((m) => m.pubkey!));
+  }, [org.data]);
   if (org.isError) return null;
   return (
     <SidebarMenuItem>

@@ -301,6 +301,17 @@ PATCHES = [
      "      </SettingsOptionGroupList>\n",
      "        <CallsVoiceGroup />\n      </SettingsOptionGroupList>\n",
      "<CallsVoiceGroup />"),
+    # Mentions: the company's AI employees (from the Unlimited org) are always mentionable.
+    (DESKTOP / "src" / "features" / "agents" / "lib" / "agentAutocompleteEligibility.ts",
+     'import { normalizePubkey } from "@/shared/lib/pubkey";\n',
+     'import { normalizePubkey } from "@/shared/lib/pubkey";\n'
+     'import { unlimitedEmployeePubkeys } from "@/features/unlimited/org/employeePubkeys";\n',
+     "unlimitedEmployeePubkeys } from"),
+    (DESKTOP / "src" / "features" / "agents" / "lib" / "agentAutocompleteEligibility.ts",
+     '  return pubkeys;\n}\n\nexport function isAgentIdentityInAllowedList(',
+     '  for (const pk of unlimitedEmployeePubkeys()) pubkeys.add(pk);\n  return pubkeys;\n}\n\n'
+     'export function isAgentIdentityInAllowedList(',
+     "pubkeys.add(pk);\n  return pubkeys;"),
     # Task types: a fourth type for implementation work (the employee still decides code or setup in the plan).
     (DESKTOP / "src" / "features" / "projects" / "projectTaskCategories.ts",
      '  { label: "Improvement", value: "improvement" },\n] as const;',
