@@ -83,6 +83,19 @@ def artwork() -> None:
         shutil.copyfile(src, MOBILE / "assets" / "images" / src.name)
 
 
+def launch_screen() -> None:
+    """iOS launch screen: the infinity mark on the app's dark purple instead of the Buzz bee on black."""
+    image_set = MOBILE / "ios" / "Runner" / "Assets.xcassets" / "LaunchImage.imageset"
+    for src in (OVERRIDES / "ios").glob("LaunchImage*.png"):
+        shutil.copyfile(src, image_set / src.name)
+    sb = MOBILE / "ios" / "Runner" / "Base.lproj" / "LaunchScreen.storyboard"
+    t = sb.read_text()
+    black = '<color key="backgroundColor" red="0" green="0" blue="0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>'
+    purple = '<color key="backgroundColor" red="0.165" green="0.078" blue="0.259" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>'
+    if black in t:
+        sb.write_text(t.replace(black, purple))
+
+
 def app_icons() -> None:
     icon_set = MOBILE / "ios" / "Runner" / "Assets.xcassets" / "AppIcon.appiconset"
     master = BRAND / "icon-1024.png"
@@ -316,6 +329,7 @@ def main() -> None:
     info_plist()
     artwork()
     app_icons()
+    launch_screen()
     print(f"mobile: bundle {BUNDLE}, {dart_strings()} string lines branded, team {'set' if TEAM else 'none'}")
 
 
