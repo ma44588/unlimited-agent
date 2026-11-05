@@ -9,15 +9,14 @@ services:
         condition: service_healthy
     environment:
       BUZZ_DOMAIN: ${BUZZ_DOMAIN:?set BUZZ_DOMAIN}
+      UNLIMITED_RELAYINFO_SECRET: ${UNLIMITED_RELAYINFO_SECRET:?set UNLIMITED_RELAYINFO_SECRET}
     ports:
       - "${CADDY_HTTP_PORT:-80}:80"
       - "${CADDY_HTTPS_PORT:-443}:443"
-      - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/unlimited/web-dist:/srv/web:ro
       - /opt/unlimited/landing:/srv/landing:ro
-      - /opt/unlimited/preview-dist:/srv/preview:ro
       - buzz-caddy-data:/data
       - buzz-caddy-config:/config
     restart: unless-stopped

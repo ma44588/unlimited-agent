@@ -57,6 +57,27 @@
     reverse_proxy pair-relay:5000
   }
 
+  # Unlimited: the relay information document (NIP-11) comes from the connector, which asks the relay with
+  # the inner header and replaces its name, so the server does not announce which software it runs.
+  @relayinfo {
+    path /
+    header Accept *application/nostr+json*
+    not header Upgrade *websocket*
+    not header X-Unlimited-Inner {$UNLIMITED_RELAYINFO_SECRET}
+  }
+  handle @relayinfo {
+    rewrite * /relay-info/
+    reverse_proxy 172.30.0.1:8765
+  }
+  @relayinfo2 {
+    path /info
+    not header X-Unlimited-Inner {$UNLIMITED_RELAYINFO_SECRET}
+  }
+  handle @relayinfo2 {
+    rewrite * /relay-info/info
+    reverse_proxy 172.30.0.1:8765
+  }
+
   # Unlimited: browsers get our private landing page; invites get our own page;
   # desktop/mobile websocket, NIP-11 and the relay API go to the relay unchanged.
   @browser {
@@ -100,14 +121,4 @@
   handle {
     reverse_proxy relay:3000
   }
-}
-
-# Unlimited: design preview of the desktop UI (browser mode with demo data, no real data).
-{$BUZZ_DOMAIN}:8443 {
-  encode zstd gzip
-  header X-Robots-Tag "noindex, nofollow"
-  header Cache-Control "no-store"
-  root * /srv/preview
-  try_files {path} /index.html
-  file_server
 }
