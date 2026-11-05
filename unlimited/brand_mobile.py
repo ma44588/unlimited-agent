@@ -279,6 +279,12 @@ PATCHES = [
      "              invitePageBuilder: (_) => const CommunityInvitePage(),\n              chats: HomePage(\n"),
     ("lib/app.dart", "              communityAppearancePageBuilder: (_) => const ThemePickerPage(),\n            ),\n          ),\n",
      "              communityAppearancePageBuilder: (_) => const ThemePickerPage(),\n            ),\n            ),\n          ),\n"),
+    # Signed out: the Unlimited welcome (join by invite email or link) instead of the Buzz pairing screen.
+    ("lib/app.dart", "import 'features/unlimited/unlimited_shell.dart';",
+     "import 'features/unlimited/unlimited_shell.dart';\nimport 'features/unlimited/unlimited_join.dart';"),
+    ("lib/app.dart", "import 'onboarding_app_entry.dart';\n", "// unlimited: the signed-out screen is UnlimitedJoinScreen\n"),
+    ("lib/app.dart", "            authenticated: false,\n            child: OnboardingAppEntry(),",
+     "            authenticated: false,\n            child: UnlimitedJoinScreen(),"),
     # Live voice calls with the employees (WebRTC to OpenAI Realtime through the Unlimited server).
     ("pubspec.yaml", "  record: ^6.2.1\n", "  record: ^6.2.1\n  flutter_webrtc: ^1.6.3\n"),
     ("ios/Runner/Info.plist",

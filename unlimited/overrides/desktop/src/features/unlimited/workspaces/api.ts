@@ -24,7 +24,13 @@ export type Workspace = {
   invites_open: number;
 };
 export type Member = { pubkey: string; display_name: string; email: string; role: WorkspaceRole; status: "active" | "removed"; joined_at: number };
-export type Invite = { id: string; email: string; role: WorkspaceRole; code_hint: string; expires_at: number; max_uses: number; created_at: number; revoked_at: number | null };
+export type InviteStatus = "open" | "pending" | "joined" | "rejected";
+export type Invite = {
+  id: string; email: string; role: WorkspaceRole; code_hint: string; expires_at: number; max_uses: number; created_at: number;
+  revoked_at: number | null; name?: string; department?: string; confirm?: number; status?: InviteStatus; kind?: string;
+  joined_name?: string; device?: string; pair?: string; requested_at?: number | null; joined_at?: number | null;
+};
+export type NewInviteInput = { email: string; role: WorkspaceRole; days: number; max_uses: number; name: string; department: string; confirm: boolean };
 export type AuditRow = { ts: number; actor: string; action: string; target: string; details: string };
 export type WorkspaceDetail = Omit<Workspace, "members"> & { members: Member[]; invites: Invite[]; audit: AuditRow[]; transitions: WorkspaceStatus[] };
 export type NewInvite = { id: string; url: string; expires_at: number; max_uses: number; role: WorkspaceRole };
@@ -41,8 +47,10 @@ export const workspacesApi = {
     isDemo() ? demoStatus(ref, status) : request<{ status: WorkspaceStatus }>("POST", `/admin/workspaces/${enc(ref)}/status`, { status, reason }),
   setPlan: (ref: string, plan: string) =>
     isDemo() ? demoPlan(ref, plan) : request<{ plan: string }>("POST", `/admin/workspaces/${enc(ref)}/plan`, { plan }),
-  invite: (ref: string, input: { email: string; role: WorkspaceRole; days: number; max_uses: number }) =>
+  invite: (ref: string, input: NewInviteInput) =>
     isDemo() ? demoInvite(ref, input) : request<NewInvite>("POST", `/admin/workspaces/${enc(ref)}/invites`, input),
+  decideInvite: (ref: string, id: string, approve: boolean) =>
+    isDemo() ? demoDecide(ref, id, approve) : request<{ status: string }>("POST", `/admin/workspaces/${enc(ref)}/invites/${enc(id)}/decide`, { approve }),
   revokeInvite: (ref: string, id: string) =>
     isDemo() ? demoRevoke(ref, id) : request<{ revoked: boolean }>("POST", `/admin/workspaces/${enc(ref)}/invites/${enc(id)}/revoke`, {}),
   member: (ref: string, pubkey: string, input: { do: "remove" } | { do: "role"; role: WorkspaceRole }) =>
@@ -75,7 +83,16 @@ const demo: Record<string, WorkspaceDetail> = {
       { pubkey: pk("b"), display_name: "Youssef", email: "youssef@unlimitedsolutions.technology", role: "admin", status: "active", joined_at: now() - 20 * DAY },
       { pubkey: pk("c"), display_name: "Fahd", email: "fahd@unlimitedsolutions.technology", role: "member", status: "active", joined_at: now() - 9 * DAY },
     ],
-    invites: [{ id: "i1", email: "sara@unlimitedsolutions.technology", role: "member", code_hint: "k2Q9xa", expires_at: now() + 5 * DAY, max_uses: 1, created_at: now() - 2 * DAY, revoked_at: null }],
+    invites: [
+      { id: "i0", email: "", role: "member", code_hint: "p8Lm2a", expires_at: now() + 6 * DAY, max_uses: 1, created_at: now() - DAY, revoked_at: null,
+        name: "Ahmed Samir", department: "dl", confirm: 1, status: "pending", kind: "direct", joined_name: "Ahmed Samir", device: "MacBook",
+        pair: "48 · 17", requested_at: now() - 120 },
+      { id: "i1", email: "sara@unlimitedsolutions.technology", role: "member", code_hint: "k2Q9xa", expires_at: now() + 5 * DAY, max_uses: 1,
+        created_at: now() - 2 * DAY, revoked_at: null, name: "Sara", department: "", confirm: 1, status: "open", kind: "direct" },
+      { id: "i2", email: "khaled@unlimitedsolutions.technology", role: "admin", code_hint: "Zq81mn", expires_at: now() + 4 * DAY, max_uses: 1,
+        created_at: now() - 3 * DAY, revoked_at: null, name: "Khaled", department: "", confirm: 0, status: "joined", kind: "direct",
+        joined_name: "Khaled", device: "Windows PC", joined_at: now() - 2 * DAY },
+    ],
     audit: [
       { ts: now() - 2 * DAY, actor: "owner", action: "invite.created", target: "sara@unlimitedsolutions.technology", details: "{}" },
       { ts: now() - 9 * DAY, actor: "system", action: "member.joined", target: "Fahd", details: "{}" },
@@ -101,7 +118,7 @@ const demo: Record<string, WorkspaceDetail> = {
 const summary = (w: WorkspaceDetail): Workspace => ({
   ...w,
   members: w.members.filter((m) => m.status === "active").length,
-  invites_open: w.invites.filter((i) => !i.revoked_at && i.expires_at > now()).length,
+  invites_open: w.invites.filter((i) => !i.revoked_at && ((i.status ?? "open") === "pending" || ((i.status ?? "open") === "open" && i.expires_at > now()))).length,
 });
 const later = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), 250));
 const log = (w: WorkspaceDetail, action: string, target: string) => w.audit.unshift({ ts: now(), actor: "owner", action, target, details: "{}" });
@@ -128,12 +145,21 @@ function demoPlan(ref: string, plan: string) {
   log(demo[ref], "workspace.plan_changed", plan);
   return later({ plan });
 }
-function demoInvite(ref: string, i: { email: string; role: WorkspaceRole; days: number; max_uses: number }) {
-  const code = Math.random().toString(36).slice(2, 12);
-  const inv: Invite = { id: code, email: i.email, role: i.role, code_hint: code.slice(-6), expires_at: now() + i.days * DAY, max_uses: i.max_uses, created_at: now(), revoked_at: null };
+function demoInvite(ref: string, i: NewInviteInput) {
+  const code = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+  const inv: Invite = {
+    id: code, email: i.email, role: i.role, code_hint: code.slice(-6), expires_at: now() + i.days * DAY, max_uses: 1, created_at: now(),
+    revoked_at: null, name: i.name, department: i.department, confirm: i.confirm ? 1 : 0, status: "open", kind: "direct",
+  };
   demo[ref].invites.unshift(inv);
   log(demo[ref], "invite.created", i.email || inv.id);
-  return later<NewInvite>({ id: inv.id, url: `https://${demo[ref].host}/invite/${code}`, expires_at: inv.expires_at, max_uses: i.max_uses, role: i.role });
+  return later<NewInvite>({ id: inv.id, url: `https://app.unlimitedsolutions.technology/unlimited-api/join/${code}`, expires_at: inv.expires_at, max_uses: 1, role: i.role });
+}
+function demoDecide(ref: string, id: string, approve: boolean) {
+  const inv = demo[ref].invites.find((x) => x.id === id);
+  if (inv) inv.status = approve ? "joined" : "rejected";
+  log(demo[ref], approve ? "member.joined" : "invite.rejected", inv?.joined_name ?? id);
+  return later({ status: approve ? "joined" : "rejected" });
 }
 function demoRevoke(ref: string, id: string) {
   const inv = demo[ref].invites.find((x) => x.id === id);

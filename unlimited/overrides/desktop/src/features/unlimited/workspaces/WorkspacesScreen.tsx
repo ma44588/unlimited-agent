@@ -3,7 +3,8 @@
  * who is in it, open invite links, and the controls to suspend, resume or archive it.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, Copy, Link2, Loader2, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { Building2, Check, ChevronLeft, ChevronRight, Copy, Link2, Loader2, MessageCircle, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import * as React from "react";
 
 import {
@@ -17,6 +18,8 @@ import {
   type WorkspaceStatus,
   workspacesApi,
 } from "@/features/unlimited/workspaces/api";
+import { aiApi } from "@/features/unlimited/ai/api";
+import { orgApi } from "@/features/unlimited/org/api";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/ui/dialog";
@@ -89,7 +92,8 @@ export function WorkspacesScreen() {
   const [selected, setSelected] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
   const rows = list.data?.workspaces ?? [];
-  const current = selected ?? rows[0]?.slug ?? null;
+  const plans = list.data?.plans ?? [];
+  const current = selected && rows.some((w) => w.slug === selected) ? selected : null;
   const counts = React.useMemo(() => {
     const c = { live: 0, closed: 0, people: 0 };
     for (const w of rows) {
@@ -103,6 +107,10 @@ export function WorkspacesScreen() {
   return (
     <div className="flex h-full min-h-0 w-full" data-testid="workspaces-screen">
       <main className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
+        {current ? (
+          <WorkspacePanel onBack={() => setSelected(null)} plans={plans} slug={current} />
+        ) : (
+        <>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/45 px-4 py-3">
           <h1 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <Building2 className="h-4 w-4 text-muted-foreground" /> Workspaces
@@ -130,14 +138,13 @@ export function WorkspacesScreen() {
         ) : list.isError ? (
           <p className="py-16 text-sm text-muted-foreground">Workspaces are available to the platform owner only.</p>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-            <nav aria-label="Workspaces" className="flex flex-col gap-1.5">
-              {rows.map((w) => (
-                <WorkspaceRow active={w.slug === current} key={w.id} onSelect={() => setSelected(w.slug)} w={w} />
-              ))}
-            </nav>
-            {current ? <WorkspacePanel plans={list.data?.plans ?? []} slug={current} /> : null}
-          </div>
+          <nav aria-label="Workspaces" className="flex flex-col gap-2.5">
+            {rows.map((w) => (
+              <WorkspaceRow key={w.id} onSelect={() => setSelected(w.slug)} plan={plans.find((p) => p.id === w.plan_id)} w={w} />
+            ))}
+          </nav>
+        )}
+        </>
         )}
       </main>
       {creating ? (
@@ -155,31 +162,69 @@ export function WorkspacesScreen() {
   );
 }
 
-function WorkspaceRow({ w, active, onSelect }: { w: Workspace; active: boolean; onSelect: () => void }) {
+function Initials({ name, home }: { name: string; home?: boolean }) {
+  const t = name.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase()).join("");
+  return (
+    <span
+      className={cn(
+        "grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold text-white",
+        home ? "bg-gradient-to-br from-[#3b1f55] to-[#b23a75]" : "bg-teal-700",
+      )}
+    >
+      {home ? "∞" : t || "W"}
+    </span>
+  );
+}
+
+function Stat({ value, label, warn }: { value: React.ReactNode; label: string; warn?: boolean }) {
+  return (
+    <span className="flex flex-col items-end">
+      <b className={cn("text-[15px] font-semibold", warn ? "text-amber-600" : "text-foreground")}>{value}</b>
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+    </span>
+  );
+}
+
+function useHomeEmployees(enabled: boolean) {
+  return useQuery({ queryKey: ["unlimited", "ai"], queryFn: () => aiApi.view(), enabled, retry: false, staleTime: 60_000 });
+}
+
+function WorkspaceRow({ w, plan, onSelect }: { w: Workspace; plan?: Plan; onSelect: () => void }) {
+  const ai = useHomeEmployees(!!w.is_home);
+  const emp = w.is_home ? ai.data?.employees.length : undefined;
   return (
     <button
-      aria-current={active ? "true" : undefined}
-      className={cn(
-        "flex w-full flex-col gap-1 rounded-xl border px-3.5 py-2.5 text-start transition-colors",
-        active ? "border-primary/50 bg-primary/5" : "border-border/60 bg-background hover:bg-muted/40",
-      )}
+      className="group flex w-full items-center gap-4 rounded-2xl border border-border/60 bg-background px-4 py-3.5 text-start transition-colors hover:border-primary/40 hover:bg-muted/30"
+      data-testid="workspace-row"
       onClick={onSelect}
       type="button"
     >
-      <span className="flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-semibold text-foreground">{w.name}</span>
-        <StatusBadge status={w.status} />
+      <Initials home={!!w.is_home} name={w.name} />
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-[15px] font-semibold text-foreground">{w.name}</span>
+          <StatusBadge status={w.status} />
+          {w.is_home ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">Your workspace</span> : null}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {w.host} · {w.plan_name ?? w.plan_id} · created {when(w.created_at)}
+        </span>
       </span>
-      <span className="truncate text-xs text-muted-foreground">{w.host}</span>
-      <span className="text-[11px] text-muted-foreground/90">
-        {w.plan_name ?? w.plan_id} plan, {w.members} {w.members === 1 ? "person" : "people"}
-        {w.is_home ? ", your workspace" : ""}
+      <span className="hidden items-center gap-7 md:flex">
+        <Stat label="People" value={plan ? `${w.members} / ${plan.seats}` : w.members} />
+        {emp !== undefined ? <Stat label="AI employees" value={plan ? `${emp} / ${plan.employees}` : emp} warn={!!plan && emp > plan.employees} /> : null}
+        <Stat label="Open invites" value={w.invites_open} />
+      </span>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-border/70 text-muted-foreground transition-colors group-hover:text-foreground">
+        <ChevronRight className="h-4 w-4" />
       </span>
     </button>
   );
 }
 
-function WorkspacePanel({ slug, plans }: { slug: string; plans: Plan[] }) {
+type Tab = "overview" | "people" | "invites" | "employees" | "activity";
+
+function WorkspacePanel({ slug, plans, onBack }: { slug: string; plans: Plan[]; onBack: () => void }) {
   const qc = useQueryClient();
   const detail = useQuery({ queryKey: ["unlimited", "workspace", slug], queryFn: () => workspacesApi.get(slug), retry: false });
   const refresh = () => {
@@ -189,6 +234,8 @@ function WorkspacePanel({ slug, plans }: { slug: string; plans: Plan[] }) {
   const sync = useMutation({ mutationFn: () => workspacesApi.get(slug, true), onSuccess: refresh });
   const plan = useMutation({ mutationFn: (p: string) => workspacesApi.setPlan(slug, p), onSuccess: refresh });
   const [confirm, setConfirm] = React.useState<WorkspaceStatus | null>(null);
+  const [tab, setTab] = React.useState<Tab>("overview");
+  const ai = useHomeEmployees(!!detail.data?.is_home);
 
   if (detail.isLoading) {
     return (
@@ -202,95 +249,181 @@ function WorkspacePanel({ slug, plans }: { slug: string; plans: Plan[] }) {
   const active = w.members.filter((m) => m.status === "active");
   const seats = plans.find((p) => p.id === w.plan_id)?.seats;
 
+  const planRow = plans.find((p) => p.id === w.plan_id);
+  const nowS = Date.now() / 1000;
+  const openInvites = w.invites.filter(
+    (x) => !x.revoked_at && ((x.status ?? "open") === "pending" || ((x.status ?? "open") === "open" && x.expires_at > nowS)),
+  );
+  const waiting = w.invites.filter((x) => x.status === "pending").length;
+  const employees = w.is_home ? ai.data?.employees ?? [] : null;
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "people", label: `People · ${active.length}` },
+    { id: "invites", label: `Invites · ${openInvites.length}` },
+    ...(employees ? [{ id: "employees" as Tab, label: `AI employees · ${employees.length}` }] : []),
+    { id: "activity", label: "Activity" },
+  ];
+
   return (
-    <div className="min-w-0 space-y-4">
-      <section className="rounded-xl border border-border/60 bg-background px-4 py-3.5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              {w.name} <StatusBadge status={w.status} />
-            </h2>
-            <p className="truncate text-sm text-muted-foreground">{w.host}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Created {when(w.created_at)} on {w.cell_name ?? "cell 1"}. Status changed {ago(w.status_changed_at)}.
-            </p>
-          </div>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Plan
-            <select
-              aria-label="Plan"
-              className={field}
-              disabled={plan.isPending}
-              onChange={(e) => plan.mutate(e.target.value)}
-              value={w.plan_id}
-            >
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}: {p.seats} people, {p.employees} employees
-                </option>
-              ))}
-            </select>
-          </label>
+    <div className="min-w-0" data-testid="workspace-detail">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          aria-label="Back to workspaces"
+          className="grid h-9 w-9 place-items-center rounded-xl border border-border/70 text-muted-foreground hover:text-foreground"
+          onClick={onBack}
+          type="button"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <Initials home={!!w.is_home} name={w.name} />
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            {w.name} <StatusBadge status={w.status} />
+          </h2>
+          <p className="truncate text-sm text-muted-foreground">{w.host}</p>
         </div>
-        {w.is_home ? (
-          <p className="mt-3 flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5" /> This is your own workspace. It can't be suspended or archived from here.
-          </p>
-        ) : (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {w.transitions.map((t) => (
-              <Button
-                className="h-8 text-xs"
-                key={t}
-                onClick={() => setConfirm(t)}
-                size="sm"
-                type="button"
-                variant={ACTION[t].danger ? "destructive" : "outline"}
-              >
-                {ACTION[t].label}
-              </Button>
+        <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+          Plan
+          <select aria-label="Plan" className={field} disabled={plan.isPending} onChange={(e) => plan.mutate(e.target.value)} value={w.plan_id}>
+            {plans.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}: {p.seats} people, {p.employees} employees
+              </option>
             ))}
+          </select>
+        </label>
+      </div>
+      {plan.isError ? <p className="mt-2 text-xs text-destructive">{errorText(plan.error)}</p> : null}
+
+      <div className="mt-4 mb-4 flex gap-1 overflow-x-auto border-b border-border/60" role="tablist">
+        {tabs.map((t) => (
+          <button
+            aria-selected={tab === t.id}
+            className={cn(
+              "-mb-px whitespace-nowrap border-b-2 px-3.5 py-2 text-sm transition-colors",
+              tab === t.id ? "border-foreground font-semibold text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            role="tab"
+            type="button"
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "overview" ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Box label="People" sub={seats ? undefined : "no seat limit"} value={seats ? `${active.length} of ${seats}` : String(active.length)} fill={seats ? active.length / seats : undefined} />
+            {employees ? (
+              <Box
+                fill={planRow ? employees.length / planRow.employees : undefined}
+                label="AI employees"
+                value={planRow ? `${employees.length} of ${planRow.employees}` : String(employees.length)}
+              />
+            ) : (
+              <Box label="AI employees allowed" value={planRow ? String(planRow.employees) : "—"} />
+            )}
+            <Box label="Open invites" sub={waiting ? `${waiting} waiting for you` : openInvites.length ? "see Invites" : "none waiting"} value={String(openInvites.length)} />
+            <Box label="Created" sub={`${w.cell_name ?? "cell 1"} · status changed ${ago(w.status_changed_at)}`} value={when(w.created_at)} small />
           </div>
-        )}
-        {plan.isError ? <p className="mt-2 text-xs text-destructive">{errorText(plan.error)}</p> : null}
-      </section>
+          {w.is_home ? (
+            <p className="flex items-center gap-2 rounded-xl bg-muted/50 px-3.5 py-2.5 text-sm text-muted-foreground">
+              <ShieldCheck className="h-4 w-4" /> This is your own workspace. It can't be suspended or archived from here.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {w.transitions.map((t) => (
+                <Button className="h-8 text-xs" key={t} onClick={() => setConfirm(t)} size="sm" type="button" variant={ACTION[t].danger ? "destructive" : "outline"}>
+                  {ACTION[t].label}
+                </Button>
+              ))}
+            </div>
+          )}
+          <Panel title="Latest activity" action={<Button className="h-7 px-2 text-xs" onClick={() => setTab("activity")} size="sm" type="button" variant="ghost">See all</Button>}>
+            <AuditList rows={w.audit.slice(0, 4)} />
+          </Panel>
+        </div>
+      ) : null}
 
-      <Panel
-        action={
-          <Button className="h-7 gap-1.5 px-2 text-xs" disabled={sync.isPending} onClick={() => sync.mutate()} size="sm" type="button" variant="ghost">
-            <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} /> Refresh from server
-          </Button>
-        }
-        hint={seats ? `${active.length} of ${seats} seats used` : `${active.length} people`}
-        title="People"
-      >
-        <MembersTable members={w.members} onChanged={refresh} slug={slug} />
-        {sync.isError ? <p className="px-4 pb-3 text-xs text-destructive">{errorText(sync.error)}</p> : null}
-      </Panel>
+      {tab === "people" ? (
+        <Panel
+          action={
+            <Button className="h-7 gap-1.5 px-2 text-xs" disabled={sync.isPending} onClick={() => sync.mutate()} size="sm" type="button" variant="ghost">
+              <RefreshCw className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")} /> Refresh from server
+            </Button>
+          }
+          hint={seats ? `${active.length} of ${seats} seats used` : `${active.length} people`}
+          title="People"
+        >
+          <MembersTable members={w.members} onChanged={refresh} slug={slug} />
+          {sync.isError ? <p className="px-4 pb-3 text-xs text-destructive">{errorText(sync.error)}</p> : null}
+        </Panel>
+      ) : null}
 
-      <InvitesPanel invites={w.invites} onChanged={refresh} slug={slug} status={w.status} />
+      {tab === "invites" ? <InvitesPanel home={!!w.is_home} invites={w.invites} onChanged={refresh} slug={slug} status={w.status} /> : null}
 
-      <Panel hint="The last 50 changes" title="Activity">
-        {w.audit.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted-foreground">No changes yet.</p>
-        ) : (
+      {tab === "employees" && employees ? (
+        <Panel hint={planRow ? `${employees.length} of ${planRow.employees} on the ${planRow.name} plan` : undefined} title="AI employees">
           <ul className="divide-y divide-border/50">
-            {w.audit.map((a, i) => (
-              <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={`${a.ts}-${i}`}>
-                <span className="min-w-0 truncate text-foreground">
-                  {a.action.replace(".", " ").replace("_", " ")} <span className="text-muted-foreground">{a.target}</span>
+            {employees.map((e) => (
+              <li className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm" key={e.slug}>
+                <span className="min-w-0 truncate">
+                  <span className="font-medium text-foreground">{e.name}</span>
+                  <span className="text-muted-foreground"> · {e.title}</span>
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {a.actor}, {ago(a.ts)}
+                  {e.model} · {e.status || "—"}
                 </span>
               </li>
             ))}
           </ul>
-        )}
-      </Panel>
+        </Panel>
+      ) : null}
+
+      {tab === "activity" ? (
+        <Panel hint="The last 50 changes" title="Activity">
+          <AuditList rows={w.audit} />
+        </Panel>
+      ) : null}
 
       {confirm ? <StatusDialog onClose={() => setConfirm(null)} onDone={refresh} target={confirm} w={w} /> : null}
     </div>
+  );
+}
+
+function Box({ label, value, sub, fill, small }: { label: string; value: string; sub?: string; fill?: number; small?: boolean }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background px-4 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn("mt-0.5 font-semibold text-foreground", small ? "text-[15px]" : "text-lg")}>{value}</p>
+      {fill !== undefined ? (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className={cn("h-full rounded-full", fill > 1 ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${Math.max(2, Math.min(100, fill * 100))}%` }} />
+        </div>
+      ) : null}
+      {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
+    </div>
+  );
+}
+
+function AuditList({ rows }: { rows: { ts: number; actor: string; action: string; target: string }[] }) {
+  if (!rows.length) return <p className="px-4 py-6 text-sm text-muted-foreground">No changes yet.</p>;
+  return (
+    <ul className="divide-y divide-border/50">
+      {rows.map((a, i) => (
+        <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={`${a.ts}-${i}`}>
+          <span className="min-w-0 truncate text-foreground">
+            {a.action.replace(".", " ").replace("_", " ")} <span className="text-muted-foreground">{a.target}</span>
+          </span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {a.actor}, {ago(a.ts)}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -362,119 +495,199 @@ function MembersTable({ slug, members, onChanged }: { slug: string; members: Mem
   );
 }
 
-function InvitesPanel({ slug, invites, status, onChanged }: { slug: string; invites: Invite[]; status: WorkspaceStatus; onChanged: () => void }) {
+const INVITE_STATUS: Record<string, { label: string; tone: string }> = {
+  open: { label: "Not used yet", tone: "bg-muted text-muted-foreground" },
+  pending: { label: "Wants to join", tone: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  joined: { label: "Joined", tone: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+  rejected: { label: "Declined", tone: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
+};
+
+function InvitesPanel({ slug, invites, status, onChanged, home }: {
+  slug: string; invites: Invite[]; status: WorkspaceStatus; onChanged: () => void; home: boolean;
+}) {
+  const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<WorkspaceRole>("member");
+  const [dept, setDept] = React.useState("");
   const [days, setDays] = React.useState(7);
-  const [uses, setUses] = React.useState(1);
-  const [fresh, setFresh] = React.useState<NewInvite | null>(null);
+  const [confirm, setConfirm] = React.useState(true);
+  const [fresh, setFresh] = React.useState<(NewInvite & { name: string }) | null>(null);
   const [copied, setCopied] = React.useState(false);
   const closed = status === "suspended" || status === "archived";
+  const org = useQuery({ queryKey: ["unlimited", "org"], queryFn: () => orgApi.org(), enabled: home, retry: false, staleTime: 60_000 });
+  const depts = org.data?.departments ?? [];
+  const deptName = (id?: string) => depts.find((d) => d.id === id)?.name ?? "";
   const make = useMutation({
-    mutationFn: () => workspacesApi.invite(slug, { email, role, days, max_uses: uses }),
+    mutationFn: () => workspacesApi.invite(slug, { email, role, days, max_uses: 1, name, department: dept, confirm }),
     onSuccess: (r) => {
-      setFresh(r);
+      setFresh({ ...r, name });
       setCopied(false);
       setEmail("");
+      setName("");
       onChanged();
     },
   });
   const revoke = useMutation({ mutationFn: (id: string) => workspacesApi.revokeInvite(slug, id), onSuccess: onChanged });
+  const decide = useMutation({
+    mutationFn: (v: { id: string; approve: boolean }) => workspacesApi.decideInvite(slug, v.id, v.approve),
+    onSuccess: onChanged,
+  });
   const nowS = Date.now() / 1000;
-  const open = invites.filter((i) => !i.revoked_at && i.expires_at > nowS);
+  const shown = invites.filter((i) => {
+    const st = i.status ?? "open";
+    if (st === "pending") return true;
+    if (st === "open") return !i.revoked_at && i.expires_at > nowS;
+    return st === "joined" && (i.joined_at ?? 0) > nowS - 14 * 86400;
+  });
+  shown.sort((a, b) => Number((b.status ?? "") === "pending") - Number((a.status ?? "") === "pending"));
+  const share = (url: string, who: string) => {
+    const text = `${who ? `${who}, you're` : "You're"} invited to Unlimited Agent. Open this link: ${url}`;
+    const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    void openUrl(wa).catch(() => window.open(wa, "_blank", "noopener"));
+  };
 
   return (
-    <Panel hint="Anyone with a link can join until it expires or is used up" title="Invite links">
-      <form
-        className="flex flex-wrap items-end gap-2 border-b border-border/50 px-4 py-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          make.mutate();
-        }}
-      >
-        <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs text-muted-foreground">
-          Email (for your records)
-          <input className={field} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" type="email" value={email} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Role
-          <select className={field} onChange={(e) => setRole(e.target.value as WorkspaceRole)} value={role}>
-            <option value="member">Member</option>
-            <option value="viewer">Viewer</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Expires in
-          <select className={field} onChange={(e) => setDays(Number(e.target.value))} value={days}>
-            <option value={1}>1 day</option>
-            <option value={7}>7 days</option>
-            <option value={30}>30 days</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Uses
-          <select className={field} onChange={(e) => setUses(Number(e.target.value))} value={uses}>
-            <option value={1}>1 person</option>
-            <option value={5}>5 people</option>
-            <option value={25}>25 people</option>
-          </select>
-        </label>
-        <Button className="h-8 gap-1.5 text-xs" disabled={closed || make.isPending} size="sm" type="submit">
-          {make.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />} Create link
-        </Button>
-        {closed ? <p className="w-full text-xs text-muted-foreground">Resume the workspace to invite people.</p> : null}
-        {make.isError ? <p className="w-full text-xs text-destructive">{errorText(make.error)}</p> : null}
-      </form>
+    <div className="space-y-4">
+      <Panel hint="The link works for one person, once. They join with this role and department." title="New invite">
+        <form
+          className="grid gap-2 px-4 py-3 md:grid-cols-[1.1fr_1.3fr_0.8fr_0.9fr_0.8fr_0.9fr_auto] md:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            make.mutate();
+          }}
+        >
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Name
+            <input className={field} onChange={(e) => setName(e.target.value)} placeholder="Ahmed Samir" value={name} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Email (they can sign in with it)
+            <input className={field} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" type="email" value={email} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Role
+            <select className={field} onChange={(e) => setRole(e.target.value as WorkspaceRole)} value={role}>
+              <option value="member">Member</option>
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Department
+            <select className={field} disabled={!home || depts.length === 0} onChange={(e) => setDept(e.target.value)} value={dept}>
+              <option value="">{home ? "None" : "—"}</option>
+              {depts.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Expires in
+            <select className={field} onChange={(e) => setDays(Number(e.target.value))} value={days}>
+              <option value={1}>1 day</option>
+              <option value={7}>7 days</option>
+              <option value={30}>30 days</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Before joining
+            <select className={field} onChange={(e) => setConfirm(e.target.value === "1")} value={confirm ? "1" : "0"}>
+              <option value="1">I confirm</option>
+              <option value="0">Join right away</option>
+            </select>
+          </label>
+          <Button className="h-8 gap-1.5 text-xs" disabled={closed || make.isPending || (!name.trim() && !email.trim())} size="sm" type="submit">
+            {make.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />} Create link
+          </Button>
+          {closed ? <p className="text-xs text-muted-foreground md:col-span-7">Resume the workspace to invite people.</p> : null}
+          {make.isError ? <p className="text-xs text-destructive md:col-span-7">{errorText(make.error)}</p> : null}
+        </form>
 
-      {fresh ? (
-        <div className="space-y-1.5 border-b border-border/50 bg-emerald-500/5 px-4 py-3">
-          <p className="text-xs text-foreground">Copy this link now. For safety it's shown only once.</p>
-          <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-background px-2 py-1.5 text-xs">{fresh.url}</code>
-            <Button
-              className="h-8 gap-1.5 text-xs"
-              onClick={() => {
-                void navigator.clipboard.writeText(fresh.url).then(() => setCopied(true));
-              }}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {open.length === 0 ? (
-        <p className="px-4 py-5 text-sm text-muted-foreground">No open links.</p>
-      ) : (
-        <ul className="divide-y divide-border/50">
-          {open.map((i) => (
-            <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={i.id}>
-              <span className="min-w-0">
-                <span className="block truncate text-foreground">{i.email || `Link ending ${i.code_hint}`}</span>
-                <span className="text-xs text-muted-foreground">
-                  {i.role}, {i.max_uses === 1 ? "one person" : `up to ${i.max_uses} people`}, expires {when(i.expires_at)}
-                </span>
-              </span>
+        {fresh ? (
+          <div className="space-y-1.5 border-t border-border/50 bg-emerald-500/5 px-4 py-3" data-testid="invite-fresh">
+            <p className="text-xs text-foreground">
+              Send this to {fresh.name || "them"} now. For safety the link is shown only once.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-md border border-border/60 bg-background px-2 py-1.5 text-xs">{fresh.url}</code>
               <Button
-                className="h-7 px-2 text-xs"
-                disabled={revoke.isPending}
-                onClick={() => revoke.mutate(i.id)}
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => void navigator.clipboard.writeText(fresh.url).then(() => setCopied(true))}
                 size="sm"
                 type="button"
                 variant="outline"
               >
-                Revoke
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
               </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {revoke.isError ? <p className="px-4 pb-3 text-xs text-destructive">{errorText(revoke.error)}</p> : null}
-    </Panel>
+              <Button className="h-8 gap-1.5 text-xs" onClick={() => share(fresh.url, fresh.name)} size="sm" type="button" variant="outline">
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Panel>
+
+      <Panel hint="Waiting for you first, then open links, then people who joined in the last two weeks." title="Invites">
+        {shown.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-muted-foreground">No open invites.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground">
+                <th className="px-4 py-2 font-medium">Person</th>
+                <th className="px-2 py-2 font-medium">Role</th>
+                <th className="px-2 py-2 font-medium">Department</th>
+                <th className="px-2 py-2 font-medium">Status</th>
+                <th className="px-4 py-2" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {shown.map((i) => {
+                const st = i.status ?? "open";
+                const tone = INVITE_STATUS[st] ?? INVITE_STATUS.open;
+                return (
+                  <tr data-testid="invite-row" key={i.id}>
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-foreground">{i.joined_name || i.name || i.email || `Link ending ${i.code_hint}`}</p>
+                      <p className="text-xs text-muted-foreground">{i.email || (i.kind === "direct" ? "invite link" : "old relay link")}</p>
+                    </td>
+                    <td className="px-2 py-2.5 text-xs">{i.role.charAt(0).toUpperCase() + i.role.slice(1)}</td>
+                    <td className="px-2 py-2.5 text-xs">{deptName(i.department) || "—"}</td>
+                    <td className="px-2 py-2.5">
+                      <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium", tone.tone)}>
+                        {st === "pending"
+                          ? `Wants to join · ${i.device || "a device"} · ${i.pair ?? ""}`
+                          : st === "joined"
+                            ? `Joined ${ago(i.joined_at ?? nowS)}${i.device ? ` · ${i.device}` : ""}`
+                            : `${tone.label} · ${Math.max(0, Math.ceil((i.expires_at - nowS) / 86400))} days left`}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {st === "pending" ? (
+                        <span className="inline-flex gap-1.5">
+                          <Button className="h-7 px-2.5 text-xs" disabled={decide.isPending} onClick={() => decide.mutate({ id: i.id, approve: true })} size="sm" type="button">
+                            Confirm
+                          </Button>
+                          <Button className="h-7 px-2.5 text-xs" disabled={decide.isPending} onClick={() => decide.mutate({ id: i.id, approve: false })} size="sm" type="button" variant="outline">
+                            Reject
+                          </Button>
+                        </span>
+                      ) : st === "open" ? (
+                        <Button className="h-7 px-2 text-xs" disabled={revoke.isPending} onClick={() => revoke.mutate(i.id)} size="sm" type="button" variant="ghost">
+                          Revoke
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {revoke.isError ? <p className="px-4 pb-3 text-xs text-destructive">{errorText(revoke.error)}</p> : null}
+        {decide.isError ? <p className="px-4 pb-3 text-xs text-destructive">{errorText(decide.error)}</p> : null}
+      </Panel>
+    </div>
   );
 }
 

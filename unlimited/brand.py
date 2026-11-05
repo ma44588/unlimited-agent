@@ -780,6 +780,31 @@ PATCHES = [
      '    sections: ["hosted-communities", "community-members", "relay-admin"],\n',
      '    sections: ["hosted-communities", "ai-provider", "community-members", "relay-admin"],\n',
      '"hosted-communities", "ai-provider"'),
+    # First screen: the Unlimited welcome (hero + sign in by invite email or link) instead of "Create a new identity key".
+    (DESKTOP / "src" / "features" / "onboarding" / "ui" / "MachineOnboardingFlow.tsx",
+     'import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";\n',
+     'import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";\n'
+     'import { UnlimitedWelcome } from "@/features/unlimited/join/UnlimitedWelcome";\n',
+     "import { UnlimitedWelcome }"),
+    (DESKTOP / "src" / "features" / "onboarding" / "ui" / "MachineOnboardingFlow.tsx",
+     '  if (page === "identity") {\n    return (\n      <div\n',
+     '  if (page === "identity") {\n'
+     '    return (\n'
+     '      <UnlimitedWelcome\n'
+     '        complete={complete}\n'
+     '        onExistingKey={(mode) => {\n'
+     '          setError(null);\n'
+     '          setKeyImportStage("key-entry");\n'
+     '          setKeyImportDialog(mode === "phone" ? "phone" : null);\n'
+     '          if (mode === "phone") setPhoneRecoveryStep("loading");\n'
+     '          setTransitionDirection("forward");\n'
+     '          setPage("key-import");\n'
+     '        }}\n'
+     '      />\n'
+     '    );\n'
+     '  }\n'
+     '  if ((page as string) === "buzz-identity") {\n    return (\n      <div\n',
+     "<UnlimitedWelcome"),
 ]
 
 
