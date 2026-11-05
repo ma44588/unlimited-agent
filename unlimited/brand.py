@@ -99,6 +99,11 @@ PROJECTS_UI = DESKTOP / "src" / "features" / "projects" / "ui"
 # (file, anchor, replacement, marker) — each anchor must exist exactly once, so an upstream change
 # that moves it fails the build loudly instead of silently dropping the tab.
 PATCHES = [
+    # Theme picker: the first-party "buzz" / "buzz-dark" themes show as "Unlimited" / "Unlimited Dark".
+    (DESKTOP / "src" / "features" / "settings" / "ui" / "SettingsPanels.tsx",
+     "function formatThemeLabel(name: string): string {\n  return name\n",
+     "function formatThemeLabel(name: string): string {\n  return name.replace(/^buzz(?=-|$)/, \"unlimited\") // unlimited: theme label\n",
+     "// unlimited: theme label"),
     # Agents page: no local agents, so no local "agent defaults" or "stop running agents" buttons.
     (DESKTOP / "src" / "features" / "agents" / "ui" / "AgentsView.tsx",
      "          <PageHeader\n            action={\n              <>\n",

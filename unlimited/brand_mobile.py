@@ -225,6 +225,11 @@ ACTIONS_NEW = """    List<Widget> connectionActions() => [
 
 
 PATCHES = [
+    # Theme picker: "buzz" / "buzz-dark" show as "Unlimited" / "Unlimited Dark".
+    ("lib/shared/theme/theme_catalog.dart", "  String get displayName => name\n      .split('-')",
+     "  String get displayName => name\n      .replaceFirst(RegExp(r'^buzz(?=-|$)'), 'unlimited')\n      .split('-')"),
+    ("lib/shared/theme/theme_pairs.dart", "  final stripped = lightName\n      .split('-')",
+     "  final stripped = lightName\n      .replaceFirst(RegExp(r'^buzz(?=-|$)'), 'unlimited')\n      .split('-')"),
     # Top-section gradient: Unlimited purple wash (desktop --buzz-gradient-* in unlimited/brand/theme.css).
     ("lib/shared/theme/buzz_theme.dart", "const _lightTop = Color(0xFFE6E6B6);", "const _lightTop = Color(0xFFEEE5F6);"),
     ("lib/shared/theme/buzz_theme.dart", "const _lightBottom = Color(0xFFC4D0DA);", "const _lightBottom = Color(0xFFF8E5EF);"),
