@@ -30,6 +30,14 @@ def brand_tauri_conf(check: bool) -> int:
     conf = json.loads(path.read_text())
     conf["productName"] = NAME
     conf["identifier"] = IDENTIFIER
+    # The program file is ours too (it shows in the installer, Task Manager and the Start menu target).
+    conf["mainBinaryName"] = "unlimited-agent"
+    bundle = conf.setdefault("bundle", {})
+    bundle["publisher"] = "Unlimited Solutions"
+    bundle["copyright"] = "© Unlimited Solutions"
+    bundle["shortDescription"] = NAME
+    # No local agents or local tools: employees run on our server only, so the installer carries just the app.
+    bundle["externalBin"] = []
     # Ad-hoc signature: unsigned apps show as "damaged" on Apple Silicon.
     conf.setdefault("bundle", {}).setdefault("macOS", {})["signingIdentity"] = "-"
     for win in conf.get("app", {}).get("windows", []):

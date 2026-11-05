@@ -28,7 +28,7 @@ export type InviteStatus = "open" | "pending" | "joined" | "rejected";
 export type Invite = {
   id: string; email: string; role: WorkspaceRole; code_hint: string; expires_at: number; max_uses: number; created_at: number;
   revoked_at: number | null; name?: string; department?: string; confirm?: number; status?: InviteStatus; kind?: string;
-  joined_name?: string; device?: string; pair?: string; requested_at?: number | null; joined_at?: number | null;
+  joined_name?: string; joined_pubkey?: string | null; device?: string; pair?: string; requested_at?: number | null; joined_at?: number | null;
 };
 export type NewInviteInput = { email: string; role: WorkspaceRole; days: number; max_uses: number; name: string; department: string; confirm: boolean };
 export type AuditRow = { ts: number; actor: string; action: string; target: string; details: string };
@@ -49,8 +49,10 @@ export const workspacesApi = {
     isDemo() ? demoPlan(ref, plan) : request<{ plan: string }>("POST", `/admin/workspaces/${enc(ref)}/plan`, { plan }),
   invite: (ref: string, input: NewInviteInput) =>
     isDemo() ? demoInvite(ref, input) : request<NewInvite>("POST", `/admin/workspaces/${enc(ref)}/invites`, input),
-  decideInvite: (ref: string, id: string, approve: boolean) =>
-    isDemo() ? demoDecide(ref, id, approve) : request<{ status: string }>("POST", `/admin/workspaces/${enc(ref)}/invites/${enc(id)}/decide`, { approve }),
+  decideInvite: (ref: string, id: string, approve: boolean, relayDone = false) =>
+    isDemo()
+      ? demoDecide(ref, id, approve)
+      : request<{ status: string }>("POST", `/admin/workspaces/${enc(ref)}/invites/${enc(id)}/decide`, { approve, relay_done: relayDone }),
   revokeInvite: (ref: string, id: string) =>
     isDemo() ? demoRevoke(ref, id) : request<{ revoked: boolean }>("POST", `/admin/workspaces/${enc(ref)}/invites/${enc(id)}/revoke`, {}),
   member: (ref: string, pubkey: string, input: { do: "remove" } | { do: "role"; role: WorkspaceRole }) =>

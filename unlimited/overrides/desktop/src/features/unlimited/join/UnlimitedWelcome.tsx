@@ -433,12 +433,6 @@ export function UnlimitedWelcome({
                     </form>
                   )}
                   {error ? <p className="uw-err">{error}</p> : null}
-                  <div className="uw-ft">
-                    <span>Using it on another device?</span>
-                    <button className="uw-a" onClick={() => onExistingKey("phone")} type="button">
-                      Sign in with a QR
-                    </button>
-                  </div>
                 </>
               ) : page === "code" ? (
                 <>

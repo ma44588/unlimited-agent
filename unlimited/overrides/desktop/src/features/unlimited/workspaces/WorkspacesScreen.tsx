@@ -19,7 +19,9 @@ import {
   workspacesApi,
 } from "@/features/unlimited/workspaces/api";
 import { aiApi } from "@/features/unlimited/ai/api";
+import { isDemo } from "@/features/unlimited/odoo/api";
 import { orgApi } from "@/features/unlimited/org/api";
+import { addRelayMember } from "@/shared/api/relayMembers";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/ui/dialog";
@@ -529,7 +531,15 @@ function InvitesPanel({ slug, invites, status, onChanged, home }: {
   });
   const revoke = useMutation({ mutationFn: (id: string) => workspacesApi.revokeInvite(slug, id), onSuccess: onChanged });
   const decide = useMutation({
-    mutationFn: (v: { id: string; approve: boolean }) => workspacesApi.decideInvite(slug, v.id, v.approve),
+    mutationFn: async (v: { id: string; approve: boolean }) => {
+      const inv = invites.find((x) => x.id === v.id);
+      // Only the owner may grant admin on the relay, so your own app adds an admin (signed with your key) first.
+      if (v.approve && inv?.role === "admin" && inv.joined_pubkey && !isDemo()) {
+        await addRelayMember(inv.joined_pubkey, "admin");
+        return workspacesApi.decideInvite(slug, v.id, true, true);
+      }
+      return workspacesApi.decideInvite(slug, v.id, v.approve);
+    },
     onSuccess: onChanged,
   });
   const nowS = Date.now() / 1000;

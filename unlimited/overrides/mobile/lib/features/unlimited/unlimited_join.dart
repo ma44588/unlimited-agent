@@ -509,20 +509,6 @@ class _JoinSheetState extends ConsumerState<_JoinSheet> {
           _Btn('Continue', busy: busy, onTap: () => _openLink()),
         ],
         err,
-        Padding(
-          padding: const EdgeInsets.only(top: 14),
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('On another device?', style: TextStyle(color: c.faint, fontSize: 12)),
-            GestureDetector(
-              onTap: () {
-                final nav = Navigator.of(context);
-                nav.pop();
-                unawaited(nav.push(MaterialPageRoute<void>(builder: (_) => const OnboardingAppEntry())));
-              },
-              child: Text('Scan QR', style: TextStyle(color: c.link, fontWeight: FontWeight.w700, fontSize: 12.5)),
-            ),
-          ]),
-        ),
       ],
       _Step.code => [
         Text('Check your email', style: t),
