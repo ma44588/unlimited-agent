@@ -72,7 +72,7 @@ export function EmployeePhoneSection({ slug, name }: { slug: string; name: strin
         </p>
       </div>
       <div className="flex gap-2">
-        <Input className="h-10" onChange={(e) => setNum(e.target.value)} placeholder="+12188456005" value={num} />
+        <Input className="h-10" onChange={(e) => setNum(e.target.value)} placeholder="+15550100123" value={num} />
         <Button className="h-10" disabled={!st || busy !== ""} onClick={() => void save()} type="button">
           {busy === "save" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save
         </Button>
