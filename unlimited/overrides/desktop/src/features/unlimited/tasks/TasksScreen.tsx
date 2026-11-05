@@ -6,6 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, CheckCircle2, Eye, FileText, ListChecks, Plus, X } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import {
@@ -107,14 +108,43 @@ function taskDocs(it: Item, files: AgentFile[]): AgentFile[] {
 
 /** "View document": opens the task's document straight away (a short list when there are several). */
 function ViewDocButton({ docs, onOpen }: { docs: AgentFile[]; onOpen: (name: string) => void }) {
-  const [list, setList] = React.useState(false);
+  const [at, setAt] = React.useState<{ top: number; right: number } | null>(null);
+  const btn = React.useRef<HTMLButtonElement>(null);
+  const menu = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!at) return;
+    const close = (e: Event) => {
+      if (e.type === "keydown" && (e as KeyboardEvent).key !== "Escape") return;
+      if (e.target instanceof Node && (menu.current?.contains(e.target) || btn.current?.contains(e.target))) return;
+      setAt(null);
+    };
+    const shut = () => setAt(null);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    window.addEventListener("resize", shut);
+    window.addEventListener("scroll", shut, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+      window.removeEventListener("resize", shut);
+      window.removeEventListener("scroll", shut, true);
+    };
+  }, [at]);
   if (!docs.length) return null;
+  const toggle = () => {
+    if (docs.length === 1) return onOpen(docs[0].name);
+    if (at) return setAt(null);
+    const r = btn.current?.getBoundingClientRect();
+    if (r) setAt({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+  };
   return (
-    <span className="relative" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <button
+        aria-expanded={docs.length > 1 ? Boolean(at) : undefined}
         className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11.5px] font-semibold text-primary hover:bg-primary/10"
         data-testid="tasks-view-doc"
-        onClick={() => (docs.length === 1 ? onOpen(docs[0].name) : setList((v) => !v))}
+        onClick={toggle}
+        ref={btn}
         title={docs.map((d) => d.name).join("\n")}
         type="button"
       >
@@ -122,26 +152,38 @@ function ViewDocButton({ docs, onOpen }: { docs: AgentFile[]; onOpen: (name: str
         View document{docs.length > 1 ? ` · ${docs.length}` : ""}
         <Eye className="h-3.5 w-3.5" />
       </button>
-      {list ? (
-        <span className="absolute right-0 top-full z-20 mt-1 flex w-72 flex-col rounded-xl border border-border bg-popover p-1 shadow-lg">
-          {docs.map((d) => (
-            <button
-              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-muted"
-              key={d.name}
-              onClick={() => {
-                setList(false);
-                onOpen(d.name);
-              }}
-              type="button"
+      {at
+        ? createPortal(
+            <div
+              className="fixed z-[1000] flex w-80 flex-col rounded-xl border border-border bg-background p-1 shadow-xl ring-1 ring-black/5"
+              data-testid="tasks-view-doc-menu"
+              onClick={(e) => e.stopPropagation()}
+              ref={menu}
+              role="menu"
+              style={{ top: at.top, right: at.right }}
             >
-              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate" dir="ltr">
-                {d.name}
-              </span>
-            </button>
-          ))}
-        </span>
-      ) : null}
+              {docs.map((d) => (
+                <button
+                  className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-foreground hover:bg-muted"
+                  key={d.name}
+                  onClick={() => {
+                    setAt(null);
+                    onOpen(d.name);
+                  }}
+                  role="menuitem"
+                  title={d.name}
+                  type="button"
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate" dir="ltr">
+                    {d.name}
+                  </span>
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </span>
   );
 }
