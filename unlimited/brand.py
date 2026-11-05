@@ -45,6 +45,12 @@ def brand_tauri_conf(check: bool) -> int:
             win["title"] = NAME
     if not check:
         path.write_text(json.dumps(conf, indent=2, ensure_ascii=False) + "\n")
+        # Platform files (tauri.windows.conf.json) add their own sidecar list on top; empty those too.
+        for plat in (DESKTOP / "src-tauri").glob("tauri.*.conf.json"):
+            pc = json.loads(plat.read_text())
+            if "externalBin" in pc.get("bundle", {}):
+                pc["bundle"]["externalBin"] = []
+                plat.write_text(json.dumps(pc, indent=2, ensure_ascii=False) + "\n")
     return 1
 
 
