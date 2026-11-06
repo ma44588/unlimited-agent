@@ -38,7 +38,7 @@ export type NewInvite = { id: string; url: string; expires_at: number; max_uses:
 const enc = encodeURIComponent;
 
 export const workspacesApi = {
-  list: () => (isDemo() ? demoList() : request<{ workspaces: Workspace[]; plans: Plan[] }>("GET", "/admin/workspaces")),
+  list: () => (isDemo() ? demoList() : request<{ workspaces: Workspace[]; plans: Plan[]; level?: "owner" | "admin" }>("GET", "/admin/workspaces")),
   get: (ref: string, sync = false) =>
     isDemo() ? demoGet(ref) : request<WorkspaceDetail>("GET", `/admin/workspaces/${enc(ref)}${sync ? "?sync=1" : ""}`),
   create: (input: { name: string; slug: string; plan: string; admin_pubkey?: string; trial?: boolean }) =>

@@ -88,7 +88,15 @@ function Panel({ title, hint, action, children }: { title: string; hint?: string
 
 const field = "h-8 rounded-md border border-border/70 bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+
+/** The owner sees everything; a company admin manages people but can't make admins or new workspaces. */
+function useIsOwner(): boolean {
+  const q = useQuery({ queryKey: ["unlimited", "workspaces"], queryFn: () => workspacesApi.list(), retry: false });
+  return (q.data as { level?: string } | undefined)?.level !== "admin";
+}
+
 export function WorkspacesScreen() {
+  const isOwner = useIsOwner();
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ["unlimited", "workspaces"], queryFn: () => workspacesApi.list(), retry: false });
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -127,9 +135,11 @@ export function WorkspacesScreen() {
             <span className="rounded-full border border-border/70 bg-background px-2.5 py-1">
               People <b className="font-semibold text-foreground">{counts.people}</b>
             </span>
-            <Button className="h-7 gap-1.5 px-2.5 text-xs" onClick={() => setCreating(true)} size="sm" type="button">
-              <Plus className="h-3.5 w-3.5" /> New workspace
-            </Button>
+            {isOwner ? (
+              <Button className="h-7 gap-1.5 px-2.5 text-xs" onClick={() => setCreating(true)} size="sm" type="button">
+                <Plus className="h-3.5 w-3.5" /> New workspace
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -227,6 +237,7 @@ function WorkspaceRow({ w, plan, onSelect }: { w: Workspace; plan?: Plan; onSele
 type Tab = "overview" | "people" | "invites" | "employees" | "activity";
 
 function WorkspacePanel({ slug, plans, onBack }: { slug: string; plans: Plan[]; onBack: () => void }) {
+  const isOwner = useIsOwner();
   const qc = useQueryClient();
   const detail = useQuery({ queryKey: ["unlimited", "workspace", slug], queryFn: () => workspacesApi.get(slug), retry: false });
   const refresh = () => {
@@ -286,7 +297,7 @@ function WorkspacePanel({ slug, plans, onBack }: { slug: string; plans: Plan[]; 
         </div>
         <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
           Plan
-          <select aria-label="Plan" className={field} disabled={plan.isPending} onChange={(e) => plan.mutate(e.target.value)} value={w.plan_id}>
+          <select aria-label="Plan" className={field} disabled={plan.isPending || !isOwner} onChange={(e) => plan.mutate(e.target.value)} value={w.plan_id}>
             {plans.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}: {p.seats} people, {p.employees} employees
@@ -430,6 +441,7 @@ function AuditList({ rows }: { rows: { ts: number; actor: string; action: string
 }
 
 function MembersTable({ slug, members, onChanged }: { slug: string; members: Member[]; onChanged: () => void }) {
+  const isOwner = useIsOwner();
   const act = useMutation({
     mutationFn: (v: { pk: string; input: { do: "remove" } | { do: "role"; role: WorkspaceRole } }) => workspacesApi.member(slug, v.pk, v.input),
     onSuccess: onChanged,
@@ -466,7 +478,7 @@ function MembersTable({ slug, members, onChanged }: { slug: string; members: Mem
                     title={ROLE_HINT[m.role]}
                     value={m.role}
                   >
-                    <option value="admin">Admin</option>
+                    {isOwner || m.role === "admin" ? <option value="admin">Admin</option> : null}
                     <option value="member">Member</option>
                     <option value="viewer">Viewer</option>
                   </select>
@@ -507,6 +519,7 @@ const INVITE_STATUS: Record<string, { label: string; tone: string }> = {
 function InvitesPanel({ slug, invites, status, onChanged, home }: {
   slug: string; invites: Invite[]; status: WorkspaceStatus; onChanged: () => void; home: boolean;
 }) {
+  const isOwner = useIsOwner();
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<WorkspaceRole>("member");
@@ -579,7 +592,7 @@ function InvitesPanel({ slug, invites, status, onChanged, home }: {
             <select className={field} onChange={(e) => setRole(e.target.value as WorkspaceRole)} value={role}>
               <option value="member">Member</option>
               <option value="viewer">Viewer</option>
-              <option value="admin">Admin</option>
+              {isOwner ? <option value="admin">Admin</option> : null}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">

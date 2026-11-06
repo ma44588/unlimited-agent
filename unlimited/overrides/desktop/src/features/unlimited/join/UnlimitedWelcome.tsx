@@ -8,9 +8,23 @@ import * as React from "react";
 
 import { useCommunities } from "@/features/communities/useCommunities";
 import { getIdentity } from "@/shared/api/tauriIdentity";
+import { updateProfile } from "@/shared/api/tauriProfiles";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 
 import { type JoinInfo, joinApi } from "./api";
+
+/** Publish the joiner's name once the app is connected to the workspace (a few tries while it connects). */
+async function saveNameSoon(displayName: string) {
+  for (let i = 0; i < 12; i += 1) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 1500 : 5000));
+    try {
+      await updateProfile({ displayName });
+      return;
+    } catch {
+      /* not connected yet; try again */
+    }
+  }
+}
 
 type Page = "hero" | "signin" | "code" | "invited" | "waiting";
 type Tab = "email" | "link";
@@ -217,6 +231,14 @@ export function UnlimitedWelcome({
         addedAt: new Date().toISOString(),
       });
       switchCommunity(id);
+      // The invite already has their name: skip the "What should we call you?" step and use it as the profile.
+      try {
+        window.localStorage.setItem(`buzz-onboarding-complete.v1:${identity.pubkey}`, "true");
+      } catch {
+        /* storage unavailable: the profile step shows instead */
+      }
+      const displayName = (joined.name || "").trim();
+      if (displayName) void saveNameSoon(displayName);
       complete(identity.pubkey, { continueToProfile: false });
     },
     [addCommunity, complete, switchCommunity],
