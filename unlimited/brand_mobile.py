@@ -333,6 +333,77 @@ def lib_overrides() -> int:
     return n
 
 
+ANDROID_ID = os.environ.get("UNLIMITED_ANDROID_ID", "technology.unlimitedsolutions.agent")
+ANDROID_ICONS = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+
+
+def android() -> None:
+    """Android: our app id and name, and the launcher icons (legacy + adaptive) from the brand icon."""
+    app = MOBILE / "android" / "app"
+    gradle = app / "build.gradle.kts"
+    if not gradle.exists():
+        return
+    t = gradle.read_text()
+    t = t.replace('applicationId = "xyz.block.buzz.mobile"', f'applicationId = "{ANDROID_ID}"')
+    t = t.replace('resValue("string", "app_name", "Buzz")', f'resValue("string", "app_name", "{NAME}")')
+    gradle.write_text(t)
+    res = app / "src" / "main" / "res"
+    bg = res / "values" / "ic_launcher_background.xml"
+    if bg.exists():
+        bg.write_text('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'
+                      '  <color name="ic_launcher_background">#6B3A8C</color>\n</resources>\n')
+    try:
+        from PIL import Image
+    except ImportError:
+        print("mobile: android icons skipped (no Pillow)")
+        return
+    from PIL import ImageDraw
+    src = Image.open(BRAND / "icon-1024.png").convert("RGBA")
+    w = src.size[0]
+    full = src.crop((w * 15 // 100, w * 15 // 100, w * 85 // 100, w * 85 // 100))  # no rounded corners
+    # The white mark alone: bright, unsaturated pixels become the foreground, everything else transparent.
+    mark = Image.new("RGBA", src.size, (255, 255, 255, 0))
+    px_src, px_out = src.load(), mark.load()
+    for y in range(src.size[1]):
+        for x in range(src.size[0]):
+            r, g, b, a = px_src[x, y]
+            lo = min(r, g, b)
+            if a > 0 and lo > 140:
+                px_out[x, y] = (255, 255, 255, min(255, (lo - 140) * 255 // 100))
+    mark = mark.crop(mark.getbbox())
+    # The icon's diagonal gradient without the mark: sampled from its two far corners (inside the rounding).
+    c0, c1 = px_src[w * 18 // 100, w * 18 // 100][:3], px_src[w * 82 // 100, w * 82 // 100][:3]
+    gradient = Image.new("RGB", (256, 256))
+    gp = gradient.load()
+    for y in range(256):
+        for x in range(256):
+            t = (x + y) / 510
+            gp[x, y] = tuple(round(c0[k] + (c1[k] - c0[k]) * t) for k in range(3))
+    for density, px in ANDROID_ICONS.items():
+        folder = res / f"mipmap-{density}"
+        folder.mkdir(parents=True, exist_ok=True)
+        src.resize((px, px), Image.LANCZOS).save(folder / "ic_launcher.png")  # rounded square, transparent corners
+        disc = full.resize((px, px), Image.LANCZOS)
+        mask = Image.new("L", (px, px), 0)
+        ImageDraw.Draw(mask).ellipse((0, 0, px - 1, px - 1), fill=255)
+        disc.putalpha(mask)
+        disc.save(folder / "ic_launcher_round.png")
+        # Adaptive icon: the gradient as the background layer, the white mark inside the safe zone on top.
+        fg_px = px * 108 // 48
+        gradient.resize((fg_px, fg_px), Image.LANCZOS).save(folder / "ic_launcher_background.png")
+        canvas = Image.new("RGBA", (fg_px, fg_px), (0, 0, 0, 0))
+        mw = fg_px * 56 // 100
+        m = mark.resize((mw, mw * mark.size[1] // mark.size[0]), Image.LANCZOS)
+        canvas.paste(m, ((fg_px - m.size[0]) // 2, (fg_px - m.size[1]) // 2), m)
+        canvas.save(folder / "ic_launcher_foreground.png")
+    inset = res / "drawable" / "ic_launcher_foreground_inset.xml"
+    if inset.exists():
+        inset.write_text(inset.read_text().replace('android:inset="10%"', 'android:inset="0%"'))
+    for xml in (res / "mipmap-anydpi-v26").glob("*.xml"):
+        xml.write_text(xml.read_text().replace("@color/ic_launcher_background", "@mipmap/ic_launcher_background"))
+    print(f"mobile: android {ANDROID_ID}, launcher icons written")
+
+
 def main() -> None:
     print(f"mobile: {lib_overrides()} lib overrides")
     print(f"mobile: {patches()} theme patches")
@@ -341,6 +412,7 @@ def main() -> None:
     artwork()
     app_icons()
     launch_screen()
+    android()
     print(f"mobile: bundle {BUNDLE}, {dart_strings()} string lines branded, team {'set' if TEAM else 'none'}")
 
 

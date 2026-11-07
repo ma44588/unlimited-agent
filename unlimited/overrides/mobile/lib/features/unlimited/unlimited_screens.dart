@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../shared/auth/auth_provider.dart';
 import '../../shared/relay/relay_provider.dart';
 import '../channels/channel_detail_page.dart';
 import '../channels/channel_management_provider.dart';
@@ -1236,11 +1237,14 @@ physics: udScroll,
 class UMoreScreen extends StatelessWidget {
   const UMoreScreen({
     super.key,
+    this.manager = true,
     required this.pending,
     required this.settingsPageBuilder,
     this.appearancePageBuilder,
     this.invitePageBuilder,
   });
+  /// Owner, admin or approver. Members don't get the owner's pages (Odoo, AI provider, Outbox, Invite).
+  final bool manager;
   final int pending;
   final WidgetBuilder settingsPageBuilder;
   final WidgetBuilder? appearancePageBuilder;
@@ -1292,7 +1296,7 @@ physics: udScroll,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Your account', style: u.title),
-                      Text('Unlimited Solutions · owner', style: u.sub),
+                      Text(manager ? 'Unlimited Solutions · manager' : 'Team member', style: u.sub),
                     ],
                   ),
                 ),
@@ -1300,6 +1304,7 @@ physics: udScroll,
               ],
             ),
           ),
+          if (manager) ...[
           const SizedBox(height: 10),
           group([
             (
@@ -1334,6 +1339,7 @@ physics: udScroll,
                 () => open(invitePageBuilder!),
               ),
           ]),
+          ],
           const SizedBox(height: 10),
           group([
             (
@@ -1356,7 +1362,63 @@ physics: udScroll,
               () => open(settingsPageBuilder),
             ),
           ]),
+          const SizedBox(height: 24),
+          const _DeleteAccountButton(),
         ],
+      ),
+    );
+  }
+}
+
+/// App Store 5.1.1(v): people can delete their account from inside the app. The server removes them from
+/// every workspace and wipes their name and email; then the phone signs out and forgets the key.
+class _DeleteAccountButton extends ConsumerStatefulWidget {
+  const _DeleteAccountButton();
+
+  @override
+  ConsumerState<_DeleteAccountButton> createState() => _DeleteAccountButtonState();
+}
+
+class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
+  bool _busy = false;
+
+  Future<void> _delete() async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+            'You leave the company workspace, and your name and email are removed. This can\'t be undone. '
+            'To come back you need a new invite.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete account'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await uApi(ref).post('/join/leave');
+      await ref.read(authProvider.notifier).signOut();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e is UnlimitedApiError ? e.message : 'Could not delete: $e')));
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: TextButton(
+        onPressed: _busy ? null : _delete,
+        style: TextButton.styleFrom(foregroundColor: Colors.red),
+        child: Text(_busy ? 'Deleting…' : 'Delete account'),
       ),
     );
   }

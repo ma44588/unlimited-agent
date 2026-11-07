@@ -50,6 +50,12 @@ class UnlimitedShell extends ConsumerStatefulWidget {
 class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
   late int _tab = widget.initialTab;
   int _pending = 0;
+
+  /// Owner, admin or approver: the full workday tabs. Anyone else (a member, a store reviewer) gets Chats and
+  /// More only. Unknown until the server answers; until then only the tabs everyone has are shown.
+  bool? _manager;
+
+  List<int> get _shown => _manager == true ? const [0, 1, 2, 3, 4] : const [1, 4];
   Timer? _timer;
   late final _visited = <int>{widget.initialTab};
 
@@ -114,6 +120,23 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
   Future<void> _refresh() async {
     try {
       final api = UnlimitedApi(ref.read(relayConfigProvider));
+      if (_manager != true) {
+        try {
+          await api.today();
+          if (mounted) setState(() => _manager = true);
+        } on UnlimitedApiError catch (e) {
+          if (e.status == 401 && mounted) {
+            setState(() {
+              _manager = false;
+              if (!_shown.contains(_tab)) {
+                _tab = 1;
+                _visited.add(1);
+              }
+            });
+          }
+          return;
+        }
+      }
       final plansF = api
           .today()
           .then((t) => t.needs.length)
@@ -145,6 +168,7 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
     2 => const UProjectsScreen(),
     3 => const UTeamHome(),
     _ => UMoreScreen(
+      manager: _manager == true,
       pending: _pending,
       settingsPageBuilder: widget.settingsPageBuilder,
       appearancePageBuilder: widget.appearancePageBuilder,
@@ -170,8 +194,8 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
             SafeArea(
               right: false,
               child: NavigationRail(
-                selectedIndex: _tab,
-                onDestinationSelected: _select,
+                selectedIndex: _shown.contains(_tab) ? _shown.indexOf(_tab) : 0,
+                onDestinationSelected: (i) => _select(_shown[i]),
                 labelType: NavigationRailLabelType.all,
                 indicatorColor: Ud.of(context).accent.withValues(alpha: .18),
                 leading: Padding(
@@ -195,7 +219,7 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
                   ),
                 ),
                 destinations: [
-                  for (final d in _destinations(_pending))
+                  for (final d in [for (final i in _shown) _destinations(_pending)[i]])
                     NavigationRailDestination(
                       icon: d.icon,
                       selectedIcon: d.selectedIcon,
@@ -216,6 +240,7 @@ class _UnlimitedShellState extends ConsumerState<UnlimitedShell> {
         selected: _tab,
         pending: _pending,
         onSelect: _select,
+        shown: _shown,
       ),
     );
   }
@@ -262,10 +287,12 @@ class _UdTabBar extends StatelessWidget {
     required this.selected,
     required this.pending,
     required this.onSelect,
+    required this.shown,
   });
   final int selected;
   final int pending;
   final ValueChanged<int> onSelect;
+  final List<int> shown;
 
   static const _items = [
     (Icons.wb_sunny_outlined, Icons.wb_sunny_rounded, 'Today'),
@@ -290,6 +317,7 @@ class _UdTabBar extends StatelessWidget {
           child: Row(
             children: [
               for (final (i, it) in _items.indexed)
+                if (shown.contains(i))
                 Expanded(
                   child: Semantics(
                     selected: i == selected,

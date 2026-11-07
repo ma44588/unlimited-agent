@@ -526,6 +526,7 @@ function InvitesPanel({ slug, invites, status, onChanged, home }: {
   const [dept, setDept] = React.useState("");
   const [days, setDays] = React.useState(7);
   const [confirm, setConfirm] = React.useState(true);
+  const [uses, setUses] = React.useState(1);
   const [fresh, setFresh] = React.useState<(NewInvite & { name: string }) | null>(null);
   const [copied, setCopied] = React.useState(false);
   const closed = status === "suspended" || status === "archived";
@@ -533,7 +534,7 @@ function InvitesPanel({ slug, invites, status, onChanged, home }: {
   const depts = org.data?.departments ?? [];
   const deptName = (id?: string) => depts.find((d) => d.id === id)?.name ?? "";
   const make = useMutation({
-    mutationFn: () => workspacesApi.invite(slug, { email, role, days, max_uses: 1, name, department: dept, confirm }),
+    mutationFn: () => workspacesApi.invite(slug, { email, role, days, max_uses: !home && !confirm ? uses : 1, name, department: dept, confirm }),
     onSuccess: (r) => {
       setFresh({ ...r, name });
       setCopied(false);
@@ -619,6 +620,16 @@ function InvitesPanel({ slug, invites, status, onChanged, home }: {
               <option value="0">Join right away</option>
             </select>
           </label>
+          {!home && !confirm ? (
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              People
+              <select className={field} onChange={(e) => setUses(Number(e.target.value))} value={uses}>
+                <option value={1}>1 person</option>
+                <option value={5}>Up to 5</option>
+                <option value={20}>Up to 20</option>
+              </select>
+            </label>
+          ) : null}
           <Button className="h-8 gap-1.5 text-xs" disabled={closed || make.isPending || (!name.trim() && !email.trim())} size="sm" type="submit">
             {make.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />} Create link
           </Button>
